@@ -1,0 +1,16 @@
+version: 2
+models:
+  - name: agg_breast_phase_sponsor
+    description: "Trial counts by registered phase and lead sponsor class; one row per combination."
+    columns:
+      - name: phase
+        description: "Preserve NA as a source category; use MISSING for null phase."
+        data_tests:
+          - not_null
+      - name: sponsor_class
+        description: "Class of the lead sponsor; OTHER is retained without reclassification."
+        data_tests:
+          - not_null
+      - name: trial_count
+        data_tests:
+          - not_null

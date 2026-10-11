@@ -1,0 +1,12 @@
+clinical_trials:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: YOUR_GCP_PROJECT_ID
+      dataset: clinical_analytics
+      location: EU
+      threads: 2
+      priority: interactive
+      job_execution_timeout_seconds: 300

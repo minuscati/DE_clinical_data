@@ -1,0 +1,35 @@
+version: 2
+models:
+  - name: stg_breast_studies
+    description: "Label-based breast-neoplasm interventional cohort; one row per trial."
+    columns:
+      - name: nct_id
+        data_tests:
+          - not_null
+          - unique
+      - name: study_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['INTERVENTIONAL']
+  - name: stg_breast_sponsors
+    description: "All lead and collaborator relationships for selected trials."
+    columns:
+      - name: sponsor_id
+        data_tests:
+          - not_null
+          - unique
+      - name: nct_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_breast_studies')
+                field: nct_id
+      - name: sponsor_role
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['lead', 'collaborator']

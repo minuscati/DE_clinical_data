@@ -1,0 +1,11 @@
+name: clinical_trials
+version: '1.0.0'
+config-version: 2
+profile: clinical_trials
+model-paths: ["models"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages"]
+models:
+  clinical_trials:
+    staging:
+      +materialized: view

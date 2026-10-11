@@ -1,0 +1,27 @@
+[
+  {
+    "name": "id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "nct_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "mesh_term",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "downcase_mesh_term",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "mesh_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

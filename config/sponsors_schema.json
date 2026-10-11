@@ -1,0 +1,27 @@
+[
+  {
+    "name": "id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "nct_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "agency_class",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "lead_or_collaborator",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

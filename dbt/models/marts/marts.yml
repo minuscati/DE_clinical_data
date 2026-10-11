@@ -1,0 +1,25 @@
+version: 2
+models:
+  - name: fct_breast_trials
+    description: "One row per selected interventional trial with its lead sponsor. Registry status does not establish efficacy."
+    columns:
+      - name: nct_id
+        description: "Unique trial identifier; the grain of this table."
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_breast_studies')
+                field: nct_id
+      - name: lead_sponsor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_breast_sponsors')
+                field: sponsor_id
+      - name: start_year
+        description: "Year of the registered study start date, not registration year."
+      - name: enrollment_type
+        description: "Distinguishes anticipated and actual enrollment; retain when analyzing enrollment."

@@ -1,0 +1,17 @@
+.venv/
+data/
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+logs/
+__pycache__/
+.env
+*credentials*.json
+config/profiles.yml
+config/.user.yml
+*.key
+*.pem
+.env.*
+!.env.example
+.pbi/
+*.pbix.lock

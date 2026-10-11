@@ -1,0 +1,9 @@
+version: 2
+sources:
+  - name: clinical_raw
+    database: clinical-trials-learning
+    schema: clinical_raw
+    tables:
+      - name: breast_studies
+      - name: breast_sponsors
+      - name: breast_conditions

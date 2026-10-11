@@ -1,0 +1,20 @@
+{
+  "definition_version": "v1",
+  "exact_mesh_term": "Breast Neoplasms",
+  "mesh_types_used_for_selection": [
+    "mesh-ancestor",
+    "mesh-list"
+  ],
+  "study_type": "INTERVENTIONAL",
+  "matched_trials_before_study_type_filter": 14340,
+  "selected_trials": 11211,
+  "sponsor_rows": 18746,
+  "condition_rows": 135504,
+  "all_selected_trials_have_exactly_one_lead": true,
+  "notes": [
+    "Operational label-based cohort, not a clinically adjudicated breast-cancer cohort.",
+    "No restriction on status, phase, sex, dates, or intervention purpose.",
+    "Child exports retain all sponsors and all condition tags of selected trials.",
+    "Selection includes ancestor tags to retain trials assigned narrower disease labels."
+  ]
+}

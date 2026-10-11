@@ -1,0 +1,357 @@
+[
+  {
+    "name": "nct_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "nlm_download_date_description",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "study_first_submitted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "results_first_submitted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "disposition_first_submitted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "last_update_submitted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "study_first_submitted_qc_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "study_first_posted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "study_first_posted_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "results_first_submitted_qc_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "results_first_posted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "results_first_posted_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "disposition_first_submitted_qc_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "disposition_first_posted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "disposition_first_posted_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "last_update_submitted_qc_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "last_update_posted_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "last_update_posted_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "start_month_year",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "start_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "start_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "verification_month_year",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "verification_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "completion_month_year",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "completion_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "completion_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "primary_completion_month_year",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "primary_completion_date_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "primary_completion_date",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "target_duration",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "study_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "acronym",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "baseline_population",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "brief_title",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "official_title",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "overall_status",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "last_known_status",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "phase",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "enrollment",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "enrollment_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "source",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "limitations_and_caveats",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "number_of_arms",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "number_of_groups",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "why_stopped",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "has_expanded_access",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "expanded_access_type_individual",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "expanded_access_type_intermediate",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "expanded_access_type_treatment",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "has_dmc",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "is_fda_regulated_drug",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "is_fda_regulated_device",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "is_unapproved_device",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "is_ppsd",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "is_us_export",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "biospec_retention",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "biospec_description",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ipd_time_frame",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ipd_access_criteria",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ipd_url",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "plan_to_share_ipd",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "plan_to_share_ipd_description",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "created_at",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "updated_at",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "source_class",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "delayed_posting",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "expanded_access_nctid",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "expanded_access_status_for_nctid",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "fdaaa801_violation",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "baseline_type_units_analyzed",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "patient_registry",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]
