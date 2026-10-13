@@ -141,7 +141,8 @@ def main():
     if not args.validate_only:
         steps.append(("dbt_build", [str(dbt_executable), "build", "--project-dir", str(ROOT / "dbt"),
                                     "--profiles-dir", str(ROOT / "config"),
-                                    *([] if args.with_locations else ["--exclude", "tag:locations"])]))
+                                    "--exclude", "tag:api_updates",
+                                    *([] if args.with_locations else ["tag:locations"])]))
     run_dir = ROOT / "logs" / "batch" / uuid4().hex
     code = run_steps(steps, run_dir, {
         "project": args.project, "snapshot_date": args.snapshot_date.isoformat(),

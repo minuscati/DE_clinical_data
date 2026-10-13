@@ -8,3 +8,4 @@ sources:
       - name: breast_sponsors
       - name: breast_conditions
       - name: breast_locations
+      - name: api_trial_observations

@@ -125,6 +125,7 @@ def capture(start_date, end_date, cohort_path, run_dir, page_size=250, fetch=req
         temporary_output.replace(output)
         manifest["status"] = "complete"
         manifest["output_file"] = str(output)
+        manifest["output_sha256"] = file_hash(output)
         print(f"PASS: {len(seen)} API trials; {manifest['matched_cohort_trials']} known-cohort updates", flush=True)
         return manifest
     except Exception as error:

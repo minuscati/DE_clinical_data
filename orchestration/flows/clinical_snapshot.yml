@@ -52,4 +52,4 @@ tasks:
         - "{{ inputs.workspace_dir }}/logs/dbt:/app/dbt/logs"
         - "{{ inputs.workspace_dir }}/data/dbt_target:/app/dbt/target"
     commands:
-      - dbt build --project-dir /app/dbt --profiles-dir /app/config
+      - dbt build --project-dir /app/dbt --profiles-dir /app/config --exclude tag:api_updates

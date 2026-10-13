@@ -123,7 +123,7 @@ Edit `config/profiles.yml`: replace `YOUR_GCP_PROJECT_ID`, and use the location 
 
 ```bat
 .venv\Scripts\dbt.exe debug --project-dir dbt --profiles-dir config
-.venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config --exclude tag:locations
+.venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config --exclude tag:locations tag:api_updates
 ```
 
 ### Automated raw-table loading
@@ -174,7 +174,7 @@ Use `facilities.txt` from the **same AACT snapshot** used for the trial cohort. 
 ```bat
 .venv\Scripts\python.exe src\build_breast_locations.py --zip "C:\path\to\aact_snapshot.zip"
 .venv\Scripts\python.exe src\load_bigquery.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11 --include-locations
-.venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config
+.venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config --exclude tag:api_updates
 ```
 
 The first command creates `breast_locations.csv` and `locations_summary.json` alongside the existing cohort. The loader's opt-in `--include-locations` validates and replaces **four** raw tables, including `clinical_raw.breast_locations`, using `config/locations_schema.json`. Default loading still replaces only the original three. Locations are tied to the study CSV and location CSV by SHA-256 hashes; regenerate them if the cohort changes. A snapshot date is still supplied by the user, not proven by these hashes.
@@ -257,6 +257,30 @@ docker run --rm \
 Optional `--end-date` supports date ranges (both bounds inclusive). Each run is saved in `data/raw/ctgov_updates/<start>_<end>/<run-id>/`: full `page_*.json`, per-page request metadata, a manifest, and a completed `cohort_updates.jsonl`. A failed/partial run keeps raw evidence and a failed manifest, but never publishes its matched output. HTTP transient errors have bounded retries; mismatched counts or repeated tokens fail rather than quietly accepting incomplete results. Zero updates can be a valid completed run.
 
 The API exposes current/latest records, not every historical version. A historical date filter cannot recover a record's old state if it has since been updated again. We will collect observation history going forward; this capture alone is not a complete change log or a latest-trial warehouse update. Reruns retain separate raw captures; warehouse deduplication will be added before loading them.
+
+### API observations and baseline comparison
+
+`src/load_api_observations.py --run-dir <complete-capture-directory> --project <project>` loads matched records into `clinical_raw.api_trial_observations`. Add `--dry-run` for local validation only. The loader checks capture completion, cohort hash, output checksum (when present), field/date integrity, and row counts. Legacy captures without output checksums are explicitly noted. Existing snapshot raw tables and Power BI baseline models are not overwritten.
+
+Each observation key combines trial ID, update posting date, and canonical full-payload hash. Identical JSON content reloaded from the same or another capture does not add a row; later matching captures advance `last_seen_at`, retaining the initial capture time as `observed_at`. These times are capture completion times, not source status-change dates or per-record event times. `source_run_id` identifies the first inserted capture. Different captured payloads on the same posting date remain distinct observations.
+
+Rows are loaded into a temporary BigQuery table, then inserted/updated through `MERGE`; staging tables expire after 24 hours and are deleted after success. Failed jobs keep staging for diagnosis. The destination is date-partitioned and clustered on trial ID. Execute observation loaders sequentially: BigQuery does not enforce unique keys, and concurrent independent loaders are not supported. Cloud job IDs and results are saved under `data/processed/api_load_reports/`. After a timeout, inspect reported jobs before retrying.
+
+After the initial observation table exists, run:
+
+```bash
+docker run --rm --entrypoint dbt \
+  --mount type=bind,source="$(pwd)/config/profiles.yml",target=/app/config/profiles.yml,readonly \
+  --mount type=bind,source="$HOME/.config/gcloud/application_default_credentials.json",target=/root/.config/gcloud/application_default_credentials.json,readonly \
+  --mount type=bind,source="$(pwd)/logs/dbt",target=/app/dbt/logs \
+  --mount type=bind,source="$(pwd)/data/dbt_target",target=/app/dbt/target \
+  clinical-batch:v1 build --project-dir /app/dbt --profiles-dir /app/config \
+  --select +mart_trial_status_comparison
+```
+
+New models: `stg_api_trial_observations` and `mart_trial_status_comparison` (tagged `api_updates`, with 7 new tests). The comparison picks the latest captured record per trial and compares its status to the currently loaded AACT baseline, without reconstructing historical transitions. The difference flag is null for older API records or incomparable baseline fields. Future monthly snapshot replacement changes this baseline; immutable historical AACT baselines are not implemented yet.
+
+The snapshot runner and updated `clinical_snapshot` flow exclude `tag:api_updates` so they can still operate before the API table exists. Update an already-imported Kestra flow's `dbt_build` command accordingly. After the source exists, full `dbt build` can include both snapshot and API models.
 
 ### 5. Open or rebuild the Power BI report
 

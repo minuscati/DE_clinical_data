@@ -1,0 +1,21 @@
+version: 2
+models:
+  - name: stg_api_trial_observations
+    description: "Distinct captured API payload versions. observed_at is first capture completion time; last_seen_at advances on later matching captures. No claim of complete source history."
+    columns:
+      - name: observation_id
+        data_tests: [unique, not_null]
+      - name: nct_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_breast_studies')
+                field: nct_id
+      - name: last_update_posted_date
+        data_tests: [not_null]
+  - name: mart_trial_status_comparison
+    description: "Latest captured status versus the currently loaded AACT baseline. Differences are observed between records, not dated state-transition events. Null flags denote incomparable or older API records."
+    columns:
+      - name: nct_id
+        data_tests: [unique, not_null]
