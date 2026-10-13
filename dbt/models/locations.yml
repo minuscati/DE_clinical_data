@@ -1,0 +1,21 @@
+version: 2
+models:
+  - name: stg_breast_locations
+    description: "One facility record per row, not one globally unique hospital. Facility status is distinct from overall trial status."
+    columns:
+      - name: facility_id
+        data_tests: [not_null, unique]
+      - name: nct_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_breast_studies')
+                field: nct_id
+  - name: agg_breast_country_status
+    description: "One row per country/phase/overall trial status/lead sponsor class. A multinational trial counts once in each country; country counts are not additive to global unique trials. Missing country is explicit; trials without any facilities are absent."
+    columns:
+      - name: country
+        data_tests: [not_null]
+      - name: trial_count
+        data_tests: [not_null]

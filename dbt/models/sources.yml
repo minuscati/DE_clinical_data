@@ -7,3 +7,4 @@ sources:
       - name: breast_studies
       - name: breast_sponsors
       - name: breast_conditions
+      - name: breast_locations

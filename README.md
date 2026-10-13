@@ -2,11 +2,15 @@
 
 A snapshot-based data engineering learning project using **Python, BigQuery, dbt, and Power BI**. It builds a defined cohort of breast-neoplasm-related interventional trials from AACT and describes their registered phases, lead sponsor classes, and reported start years.
 
-**Initial version:** local extraction and cohort preparation, manual BigQuery loading, tested dbt transformations, and a Power BI Desktop report. Daily API ingestion, scheduling, and automated loading are planned, not implemented.
+**Initial baseline:** local extraction and cohort preparation, manual BigQuery loading, tested dbt transformations, and a Power BI Desktop report. A Python loader now supports replacing the same three raw tables. Daily API ingestion and scheduling are not implemented.
 
 ## Dashboard
 
 ![Power BI dashboard](docs/dashboard.png)
+
+Location extension, filtered to trials whose overall status is `RECRUITING`:
+
+![Country participation and recruitment dashboard](docs/geography_dashboard.png)
 
 Open [the Power BI report](Dashboard/breast_trials_dashboard.pbix) in Power BI Desktop. It contains imported snapshot data; refreshing requires access to the configured BigQuery project, or reconfiguring the connection to your own project.
 
@@ -50,7 +54,7 @@ flowchart LR
     A[AACT flat-file ZIP] --> B[Python extraction and profiling]
     B --> C[MeSH cohort selection]
     C --> D[Three cohort CSVs]
-    D -->|Manual upload| E[BigQuery clinical_raw]
+    D -->|Python loader or baseline manual upload| E[BigQuery clinical_raw]
     E --> F[dbt staging views]
     F --> G[fct_breast_trials]
     G --> H[agg_breast_phase_sponsor]
@@ -119,8 +123,111 @@ Edit `config/profiles.yml`: replace `YOUR_GCP_PROJECT_ID`, and use the location 
 
 ```bat
 .venv\Scripts\dbt.exe debug --project-dir dbt --profiles-dir config
+.venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config --exclude tag:locations
+```
+
+### Automated raw-table loading
+
+After the authentication step above, replace manual CSV uploads with:
+
+```bat
+.venv\Scripts\python.exe src\load_bigquery.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11 --dry-run
+.venv\Scripts\python.exe src\load_bigquery.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11
+```
+
+The first command validates local files only; it does not authenticate or contact Google. The second uses Application Default Credentials and replaces the three `clinical_raw` tables with `WRITE_TRUNCATE`, so rerunning a snapshot does not append duplicates. The dataset must already exist; use `--dataset` and `--location` to override `clinical_raw` and `EU`.
+
+Before any cloud writes, all three CSVs must match their schemas (including column order), the generated summary counts, the interventional cohort, and trial/sponsor relationships. The loader permits quoted newlines, skips one header record, and rejects malformed rows rather than silently dropping them. It verifies each loaded table's row count.
+
+Each invocation saves a JSON report in `data/processed/load_reports/`, including the user-supplied snapshot date, SHA-256 file hashes, expected/loaded row counts, job IDs, and status. The snapshot date is a supplied provenance label, not inferred or independently verified from the archive. Reports are local artifacts ignored by Git.
+
+**The three replacements are not a single transaction.** A failure after the first table may leave a mixed set of raw tables. Stop downstream processing, inspect the report and BigQuery jobs, and rerun all three successfully before `dbt build`. Do not run two loaders concurrently. After a timeout, a submitted cloud job may still be running; check its ID before retrying. Per-table replacement is atomic on successful load completion ([BigQuery CSV loading documentation](https://docs.cloud.google.com/bigquery/docs/loading-data-cloud-storage-csv)).
+
+After a successful load, run the dbt build in step 4 and refresh Power BI. Validate repeatability by loading the same snapshot again: row counts should remain unchanged and all dbt tests should pass.
+
+Local loader checks:
+
+```bat
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+### Run the batch with one command
+
+After configuring the project and authentication above:
+
+```bat
+.venv\Scripts\python.exe src\run_batch.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11
+```
+
+This runs profiling, cohort selection, BigQuery replacement, and `dbt build` sequentially using the same Python environment. Project IDs in the CLI, dbt profile, and source configuration must match. This initial runner targets the existing EU datasets and `clinical_raw` source. It does not download snapshots, create cloud resources, or refresh Power BI.
+
+If the raw text files have not been extracted, add `--zip "C:\path\to\aact_snapshot.zip"`. Without `--zip`, the runner reuses the extracted text files, so ensure the supplied snapshot date describes those files. `--validate-only` rebuilds local cohort outputs and validates them, but does not load BigQuery or run dbt.
+
+Each step has a separate log under `logs/batch/<run-id>/`, with a `report.json` recording commands, timestamps, exit codes, and overall status. A nonzero exit code stops the pipeline before downstream steps start. BigQuery load details remain in the loader's separate report. This prevents dbt from running after an unsuccessful load; it is not a rollback or a cross-table transaction. Run only one batch/loader at a time.
+
+The command is manually triggered. Scheduling is a subsequent improvement.
+
+### Optional location data
+
+Use `facilities.txt` from the **same AACT snapshot** used for the trial cohort. It is streamed directly from the ZIP; extracting the entire archive is unnecessary.
+
+```bat
+.venv\Scripts\python.exe src\build_breast_locations.py --zip "C:\path\to\aact_snapshot.zip"
+.venv\Scripts\python.exe src\load_bigquery.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11 --include-locations
 .venv\Scripts\dbt.exe build --project-dir dbt --profiles-dir config
 ```
+
+The first command creates `breast_locations.csv` and `locations_summary.json` alongside the existing cohort. The loader's opt-in `--include-locations` validates and replaces **four** raw tables, including `clinical_raw.breast_locations`, using `config/locations_schema.json`. Default loading still replaces only the original three. Locations are tied to the study CSV and location CSV by SHA-256 hashes; regenerate them if the cohort changes. A snapshot date is still supplied by the user, not proven by these hashes.
+
+New dbt models:
+
+- `stg_breast_locations`: one **facility record** per row; facility IDs are not globally unique hospital identifiers. Trial IDs may appear many times. Country names are trimmed but not standardized to ISO codes in this iteration; coordinates are safely cast, not yet independently validated.
+- `agg_breast_country_status`: unique trial-country relationships counted by country, phase, **overall trial status**, and lead sponsor class. Same-country sites do not multiply trial counts. Multinational trials contribute to multiple countries, so summing countries does not equal the global unique trial count.
+
+Missing country is shown as `MISSING`. Trials with no facility records are absent from country statistics but remain in the overall cohort; coverage is recorded in `locations_summary.json`. A trial's overall recruitment status does not establish whether every facility is actively recruiting; facility status is stored separately. Do not present country participation as national ownership or registry completeness.
+
+The location extension adds 2 models and 7 dbt tests (31 tests including the initial 24). After loading all four sources, `dbt build` can include all models. Until then, exclude `tag:locations`. The original runner automatically excludes those models/tests unless `--with-locations` is supplied.
+
+To rebuild everything including locations with one command:
+
+```bat
+.venv\Scripts\python.exe src\run_batch.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11 --zip "C:\path\to\aact_snapshot.zip" --with-locations
+```
+
+This rebuilds the base cohort and its locations from the same ZIP, then loads four tables and runs all dbt models/tests. As with the original loader, these four replacements are not a single transaction.
+
+### Docker in GitHub Codespaces
+
+Docker support is prepared for validation in Codespaces; the image must be built and tested there before treating container execution as verified. No local Windows Docker installation is required. This does not schedule execution or refresh Power BI.
+
+In the Codespaces **Linux terminal**, at the repository root:
+
+```bash
+docker --version
+docker info --format '{{.OSType}}'
+docker build -t clinical-batch:v1 .
+docker run --rm clinical-batch:v1 -m unittest discover -s tests -v
+```
+
+The image installs pinned Python package versions and contains the scripts, models, schemas, and tests. Raw data, dashboards, dbt outputs, and local Google credentials are excluded from the build context. The Python base image pins the minor version, not the patch/digest; further locking can be added after the image has been validated.
+
+For a first data check, transfer the four cohort CSVs plus `cohort_summary.json` and `locations_summary.json` to the same paths under `data/processed/breast_cohort/` in Codespaces. These files remain Git-ignored. If transferring a ZIP package containing the `breast_cohort/` directory, upload it to `data/processed/`, then extract it there using Python (which should be available in the standard Codespaces environment):
+
+```bash
+mkdir -p data/processed
+python -m zipfile -e data/processed/codespaces_cohort.zip data/processed
+docker run --rm \
+  --mount type=bind,source="$(pwd)/data",target=/app/data \
+  clinical-batch:v1 src/load_bigquery.py \
+  --project clinical-trials-learning --snapshot-date 2026-10-11 \
+  --include-locations --dry-run
+```
+
+This only validates CSVs and writes a local report; it requires no Google authentication. The location summary's content hashes remain valid when files are moved to Linux.
+
+For full cloud execution, configure a local ignored dbt profile and Application Default Credentials in Codespaces, then mount the profile and credentials at runtime (read-only), together with data and writable logs. Do not copy credentials into the image. Full `run_batch.py --with-locations` additionally needs the original AACT ZIP; processed CSVs alone are sufficient only for the loader and subsequent dbt execution. Authentication/mount instructions will be validated after the basic container works.
+
+Codespaces is a development environment: when it stops, local Docker services and schedules stop too.
 
 ### 5. Open or rebuild the Power BI report
 
@@ -150,14 +257,14 @@ The baseline staged build passed **15 nodes** (2 models and 13 tests); this is n
 
 ## Limitations and next steps
 
-- Single snapshot; manual download/upload and manually invoked dbt. No scheduled pipeline or daily API updates yet.
+- Single snapshot; manual download and manually invoked loader/dbt. The baseline used manual upload; the new loader replaces that step. No scheduled pipeline or daily API updates yet.
 - Registry dates can be actual or anticipated. Enrollment retains the actual/anticipated type and should not be pooled without considering it.
 - `NA` phase is not applicable; `MISSING` represents a missing source value. Sponsor `OTHER` is preserved and is not relabeled as academic.
 - Historical registry coverage and reporting delays affect trends; annual counts alone do not establish changes in research investment.
 - Power BI Import is a snapshot, not a real-time dashboard.
 - Local credentials, the virtual environment, raw datasets, and generated dbt artifacts are excluded from the repository. The `.pbix` contains imported public registry data and the baseline project connection metadata.
 
-Planned improvements: automated BigQuery loading with repeatable replacement, pipeline orchestration, daily API ingestion with trial-level updates and daily activity history, then infrastructure and CI checks.
+Planned improvements: pipeline orchestration, daily API ingestion with trial-level updates and daily activity history, then infrastructure and CI checks.
 
 ## Acknowledgements
 
