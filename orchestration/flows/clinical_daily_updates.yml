@@ -75,6 +75,7 @@ triggers:
     disabled: true
     cron: "0 8 * * *"
     timezone: Europe/Stockholm
+    recoverMissedSchedules: NONE
     inputs:
       workspace_dir: "REPLACE_WITH_CODESPACES_REPOSITORY_PATH"
       credential_file: "REPLACE_WITH_ADC_FILE_PATH"
