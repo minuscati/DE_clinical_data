@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -145,11 +146,14 @@ def main():
     parser.add_argument("--end-date", type=date.fromisoformat, help="Defaults to start-date")
     parser.add_argument("--page-size", type=int, default=250)
     parser.add_argument("--cohort-file", type=Path, default=COHORT / "breast_studies.csv")
+    parser.add_argument("--run-id", help="Optional safe run directory name, e.g. a Kestra execution ID")
     args = parser.parse_args()
     end_date = args.end_date or args.start_date
     if end_date < args.start_date or not 1 <= args.page_size <= 1000:
         parser.error("Invalid date range or page size (must be 1..1000)")
-    run_dir = ROOT / "data" / "raw" / "ctgov_updates" / f"{args.start_date}_{end_date}" / uuid4().hex
+    if args.run_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", args.run_id):
+        parser.error("run-id must contain only letters, digits, underscores or hyphens")
+    run_dir = ROOT / "data" / "raw" / "ctgov_updates" / f"{args.start_date}_{end_date}" / (args.run_id or uuid4().hex)
     try:
         capture(args.start_date, end_date, args.cohort_file, run_dir, args.page_size)
         return 0

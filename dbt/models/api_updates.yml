@@ -19,3 +19,10 @@ models:
     columns:
       - name: nct_id
         data_tests: [unique, not_null]
+  - name: agg_daily_trial_activity
+    description: "Captured existing-cohort trial updates grouped by source posting date. Counts unique trial IDs, not capture runs or registrations. Missing dates do not establish zero activity."
+    columns:
+      - name: activity_date
+        data_tests: [unique, not_null]
+      - name: updated_trials
+        data_tests: [not_null]

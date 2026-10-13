@@ -282,6 +282,16 @@ New models: `stg_api_trial_observations` and `mart_trial_status_comparison` (tag
 
 The snapshot runner and updated `clinical_snapshot` flow exclude `tag:api_updates` so they can still operate before the API table exists. Update an already-imported Kestra flow's `dbt_build` command accordingly. After the source exists, full `dbt build` can include both snapshot and API models.
 
+### Daily API workflow and activity model
+
+`orchestration/flows/clinical_daily_updates.yml` runs three sequential Docker tasks: API capture, observation merge, and dbt builds/tests. The Kestra execution ID becomes the capture directory name so tasks share the correct run without relying on a mutable "latest file". A new full execution creates a new capture; retrying an existing capture task against the same directory is deliberately rejected rather than overwriting evidence. Run the new workflow manually before enabling its trigger.
+
+Its daily trigger is **disabled by default** with host-path placeholders. Once tested, replace both paths and enable it for 08:00 Europe/Stockholm. Each scheduled run queries the three previous calendar days to provide overlap for delayed publication; deduplication prevents repeated payloads from adding rows. This is a bounded overlap, not a guarantee of complete source history. If the Codespace is stopped for longer, manually request a wider date range, recognizing that the API only exposes current records. Codespaces must be running for scheduling; reliable always-on deployment is a separate step. Do not run the snapshot flow/manual loaders concurrently with this flow.
+
+`agg_daily_trial_activity` counts **distinct existing-cohort trials** by last update posting date, alongside captured payload-version counts. Repeated captures do not inflate trial counts. Zero-update runs remain in local manifests; absent activity-table dates must not be filled with zeros and presented as validated no-activity days. Complete coverage tracking in a warehouse run-audit table is a future improvement. These metrics are not new registrations or the number of trial status transitions.
+
+For the initial 2026-10-13 capture, expected `updated_trials` is 42. More captures may revise counts as additional current records are observed. The flow does not replace AACT baseline tables, bring newly registered trials into the cohort, update geographic latest-state reporting, or refresh Power BI.
+
 ### 5. Open or rebuild the Power BI report
 
 Use **Get data → Google BigQuery**, authorize the Google account with access to your project, and choose **Import**. Set the Billing Project ID to your project ID.
