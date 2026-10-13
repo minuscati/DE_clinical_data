@@ -241,6 +241,23 @@ The loader and dbt output are visible in Kestra execution logs. Loader reports a
 
 For a controlled scheduling test, append `orchestration/schedule-test.example.yml` to the Flow at root level, replace its two path placeholders, and set `disabled: false`. It fires at five-minute clock boundaries in Europe/Stockholm and disables itself after success/failure/warning/killing. This tests scheduling against the existing snapshot, not daily data freshness. Confirm a trigger-origin execution in Kestra and keep the test schedule disabled afterwards. Codespaces/Kestra must remain running; the trigger is not a durable always-on production schedule.
 
+### ClinicalTrials.gov API capture (first incremental step)
+
+`src/fetch_trial_updates.py` fetches current full study JSON from the official public API, filters by last update posting date, follows every page token, and writes immutable run directories. It needs no Google credentials and does not modify BigQuery. It retains all API responses, but exports only IDs in the existing snapshot cohort; it does not admit newly registered trials or infer cohort membership from text searches.
+
+After pulling the latest code and rebuilding the image in Codespaces:
+
+```bash
+docker run --rm \
+  --mount type=bind,source="$(pwd)/data",target=/app/data \
+  clinical-batch:v1 src/fetch_trial_updates.py \
+  --start-date 2026-10-13
+```
+
+Optional `--end-date` supports date ranges (both bounds inclusive). Each run is saved in `data/raw/ctgov_updates/<start>_<end>/<run-id>/`: full `page_*.json`, per-page request metadata, a manifest, and a completed `cohort_updates.jsonl`. A failed/partial run keeps raw evidence and a failed manifest, but never publishes its matched output. HTTP transient errors have bounded retries; mismatched counts or repeated tokens fail rather than quietly accepting incomplete results. Zero updates can be a valid completed run.
+
+The API exposes current/latest records, not every historical version. A historical date filter cannot recover a record's old state if it has since been updated again. We will collect observation history going forward; this capture alone is not a complete change log or a latest-trial warehouse update. Reruns retain separate raw captures; warehouse deduplication will be added before loading them.
+
 ### 5. Open or rebuild the Power BI report
 
 Use **Get data → Google BigQuery**, authorize the Google account with access to your project, and choose **Import**. Set the Billing Project ID to your project ID.
