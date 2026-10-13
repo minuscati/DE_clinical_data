@@ -1,0 +1,19 @@
+# Append this fragment at the ROOT of the clinical_snapshot Flow.
+# Replace both absolute paths before enabling. This is a scheduling test,
+# not a fresh-data ingestion schedule. Stops after success or failure.
+triggers:
+  - id: test_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    disabled: true
+    cron: "*/5 * * * *"
+    timezone: Europe/Stockholm
+    stopAfter:
+      - SUCCESS
+      - FAILED
+      - WARNING
+      - KILLED
+    inputs:
+      workspace_dir: "REPLACE_WITH_CODESPACES_REPOSITORY_PATH"
+      credential_file: "REPLACE_WITH_ADC_FILE_PATH"
+      project: clinical-trials-learning
+      snapshot_date: "2026-10-11"

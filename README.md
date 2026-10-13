@@ -237,7 +237,9 @@ Docker task runners require the Kestra server configuration in `orchestration/ke
 
 Before executing, create `logs/dbt` and `data/dbt_target` on the Docker host. Supply the absolute repository path (`pwd`) as `workspace_dir`, and the absolute ADC JSON **file path** as `credential_file`. Neither credentials nor their contents belong in the flow or Git. Ensure the ignored dbt profile, model source, and project input all point to the same project. The task containers use code/models baked into `clinical-batch:v1`; rebuild that image after changing them.
 
-The loader and dbt output are visible in Kestra execution logs. Loader reports are persisted under the mounted `data/processed/load_reports/`; dbt logs and target artifacts are mounted separately. A failed load prevents the dbt task from starting. The workflow does not roll back tables; check cloud job status before retrying after an interrupted load. Container testing is verified separately; real workflow execution must be validated in the user's Codespaces environment.
+The loader and dbt output are visible in Kestra execution logs. Loader reports are persisted under the mounted `data/processed/load_reports/`; dbt logs and target artifacts are mounted separately. A failed load prevents the dbt task from starting. The workflow does not roll back tables; check cloud job status before retrying after an interrupted load. The two-task flow was successfully executed in Codespaces against the baseline project.
+
+For a controlled scheduling test, append `orchestration/schedule-test.example.yml` to the Flow at root level, replace its two path placeholders, and set `disabled: false`. It fires at five-minute clock boundaries in Europe/Stockholm and disables itself after success/failure/warning/killing. This tests scheduling against the existing snapshot, not daily data freshness. Confirm a trigger-origin execution in Kestra and keep the test schedule disabled afterwards. Codespaces/Kestra must remain running; the trigger is not a durable always-on production schedule.
 
 ### 5. Open or rebuild the Power BI report
 
