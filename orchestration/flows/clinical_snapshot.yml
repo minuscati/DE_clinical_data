@@ -1,0 +1,55 @@
+id: clinical_snapshot
+namespace: clinical
+description: "Load the prepared snapshot cohort into BigQuery, then build and test dbt models."
+
+inputs:
+  - id: workspace_dir
+    type: STRING
+    description: "Absolute Codespaces repository path, as printed by pwd."
+  - id: credential_file
+    type: STRING
+    description: "Absolute ADC JSON file path on the Docker host; enter its path, never its contents."
+  - id: project
+    type: STRING
+    defaults: clinical-trials-learning
+  - id: snapshot_date
+    type: STRING
+    defaults: "2026-10-11"
+    description: "Date of the prepared snapshot, not the execution date."
+
+concurrency:
+  limit: 1
+  behavior: QUEUE
+
+tasks:
+  - id: load_raw
+    type: io.kestra.plugin.scripts.python.Commands
+    containerImage: clinical-batch:v1
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      entryPoint: [""]
+      volumes:
+        - "{{ inputs.workspace_dir }}/data:/app/data"
+        - "{{ inputs.credential_file }}:/root/.config/gcloud/application_default_credentials.json:ro"
+    commands:
+      - >-
+        python /app/src/load_bigquery.py
+        --project "{{ inputs.project }}"
+        --snapshot-date "{{ inputs.snapshot_date }}"
+        --include-locations
+
+  - id: dbt_build
+    type: io.kestra.plugin.scripts.python.Commands
+    containerImage: clinical-batch:v1
+    taskRunner:
+      type: io.kestra.plugin.scripts.runner.docker.Docker
+      pullPolicy: NEVER
+      entryPoint: [""]
+      volumes:
+        - "{{ inputs.workspace_dir }}/config/profiles.yml:/app/config/profiles.yml:ro"
+        - "{{ inputs.credential_file }}:/root/.config/gcloud/application_default_credentials.json:ro"
+        - "{{ inputs.workspace_dir }}/logs/dbt:/app/dbt/logs"
+        - "{{ inputs.workspace_dir }}/data/dbt_target:/app/dbt/target"
+    commands:
+      - dbt build --project-dir /app/dbt --profiles-dir /app/config

@@ -229,6 +229,16 @@ For full cloud execution, configure a local ignored dbt profile and Application 
 
 Codespaces is a development environment: when it stops, local Docker services and schedules stop too.
 
+### Kestra snapshot workflow
+
+`orchestration/flows/clinical_snapshot.yml` contains a manually triggered, two-task workflow: load four prepared raw tables, then run dbt transformations/tests. It does not yet download or rebuild the cohort, ingest API updates, refresh Power BI, or run on a schedule. The snapshot date must describe the files, not today's date. The flow limits its own concurrent executions to one; avoid starting a separate manual loader while it runs.
+
+Docker task runners require the Kestra server configuration in `orchestration/kestra-config.yml` to enable bind mounts. This is a server setting, not a field to paste into the Flow YAML. The local development server needs Docker socket access and a restart/recreation to apply the config; retain its `clinical_kestra_storage` and `clinical_kestra_db` named volumes so the saved flows and history persist. Keep the Codespaces port private.
+
+Before executing, create `logs/dbt` and `data/dbt_target` on the Docker host. Supply the absolute repository path (`pwd`) as `workspace_dir`, and the absolute ADC JSON **file path** as `credential_file`. Neither credentials nor their contents belong in the flow or Git. Ensure the ignored dbt profile, model source, and project input all point to the same project. The task containers use code/models baked into `clinical-batch:v1`; rebuild that image after changing them.
+
+The loader and dbt output are visible in Kestra execution logs. Loader reports are persisted under the mounted `data/processed/load_reports/`; dbt logs and target artifacts are mounted separately. A failed load prevents the dbt task from starting. The workflow does not roll back tables; check cloud job status before retrying after an interrupted load. Container testing is verified separately; real workflow execution must be validated in the user's Codespaces environment.
+
 ### 5. Open or rebuild the Power BI report
 
 Use **Get data → Google BigQuery**, authorize the Google account with access to your project, and choose **Import**. Set the Billing Project ID to your project ID.
