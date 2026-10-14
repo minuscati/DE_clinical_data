@@ -9,3 +9,4 @@ sources:
       - name: breast_conditions
       - name: breast_locations
       - name: api_trial_observations
+        identifier: api_trial_content_observations

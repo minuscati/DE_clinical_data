@@ -1,6 +1,7 @@
 """Load complete API captures as deduplicated observations, preserving the AACT baseline."""
 
 import argparse
+import copy
 import csv
 import hashlib
 import io
@@ -19,6 +20,58 @@ FIELDS = [
     ("observed_at", "TIMESTAMP"), ("last_seen_at", "TIMESTAMP"),
     ("source_run_id", "STRING"), ("payload_sha256", "STRING"), ("raw_json", "STRING"),
 ]
+CONTENT_TABLE = "api_trial_content_observations"
+LEGACY_TABLE = "api_trial_observations"
+
+
+def content_identity(study):
+    """Ignore only the registry refresh marker; retain all study content."""
+    content = copy.deepcopy(study)
+    misc = content.get("derivedSection", {}).get("miscInfoModule", {})
+    misc.pop("versionHolder", None)
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    payload_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    protocol = study["protocolSection"]
+    nct_id = protocol["identificationModule"]["nctId"]
+    updated = protocol["statusModule"]["lastUpdatePostDateStruct"]["date"]
+    observation_id = hashlib.sha256(f"content-v2|{nct_id}|{updated}|{payload_hash}".encode()).hexdigest()
+    return payload_hash, observation_id
+
+
+def normalize_legacy(rows):
+    """Collapse refresh-only versions without changing/deleting the legacy table."""
+    grouped = {}
+    for original in rows:
+        row = dict(original)
+        study = json.loads(row["raw_json"])
+        protocol = study["protocolSection"]
+        status = protocol["statusModule"]
+        if (row["nct_id"] != protocol["identificationModule"]["nctId"]
+                or str(row["last_update_posted_date"]) != status["lastUpdatePostDateStruct"]["date"]
+                or row["overall_status"] != status["overallStatus"]):
+            raise ValueError("Legacy observation fields disagree with raw JSON")
+        full_raw = json.dumps(study, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if hashlib.sha256(full_raw.encode("utf-8")).hexdigest() != row["payload_sha256"]:
+            raise ValueError("Legacy full-payload checksum mismatch")
+        row["payload_sha256"], row["observation_id"] = content_identity(study)
+        row["last_update_posted_date"] = str(row["last_update_posted_date"])
+        for field in ("observed_at", "last_seen_at"):
+            value = row[field]
+            timestamp = value if isinstance(value, datetime) else datetime.fromisoformat(value)
+            if timestamp.tzinfo is None:
+                raise ValueError("Legacy capture timestamp must include timezone")
+            row[field] = timestamp.astimezone(timezone.utc).isoformat()
+        key = row["observation_id"]
+        if key not in grouped:
+            grouped[key] = row
+        else:
+            previous = grouped[key]
+            last_seen = max(previous["last_seen_at"], row["last_seen_at"])
+            # Keep raw JSON and source run from the earliest captured content.
+            if (row["observed_at"], row["source_run_id"]) < (previous["observed_at"], previous["source_run_id"]):
+                grouped[key] = row
+            grouped[key]["last_seen_at"] = last_seen
+    return list(grouped.values())
 
 
 def prepare(run_dir, cohort_file=COHORT / "breast_studies.csv"):
@@ -57,8 +110,7 @@ def prepare(run_dir, cohort_file=COHORT / "breast_studies.csv"):
                 raise ValueError("Capture study is missing overallStatus")
             seen_ids.add(nct_id)
             raw = json.dumps(study, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-            payload_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-            observation_id = hashlib.sha256(f"{nct_id}|{updated}|{payload_hash}".encode()).hexdigest()
+            payload_hash, observation_id = content_identity(study)
             rows.append({
                 "observation_id": observation_id, "nct_id": nct_id,
                 "last_update_posted_date": updated, "overall_status": status["overallStatus"],
@@ -77,7 +129,8 @@ def merge(client, rows, project, location, report):
     if dataset.location.upper() != location.upper():
         raise ValueError("Dataset location mismatch")
     schema = [bigquery.SchemaField(name, type_, mode="REQUIRED") for name, type_ in FIELDS]
-    destination = f"{project}.clinical_raw.api_trial_observations"
+    destination = f"{project}.clinical_raw.{CONTENT_TABLE}"
+    report["destination_table"] = destination
     table = bigquery.Table(destination, schema=schema)
     table.time_partitioning = bigquery.TimePartitioning(field="last_update_posted_date")
     table.clustering_fields = ["nct_id"]
@@ -103,8 +156,11 @@ def merge(client, rows, project, location, report):
     sql = f"""
         MERGE `{destination}` T USING `{staging_id}` S
         ON T.observation_id = S.observation_id
-        WHEN MATCHED AND S.last_seen_at > T.last_seen_at THEN
-          UPDATE SET last_seen_at = S.last_seen_at
+        WHEN MATCHED AND (S.last_seen_at > T.last_seen_at OR S.observed_at < T.observed_at) THEN
+          UPDATE SET last_seen_at = GREATEST(S.last_seen_at, T.last_seen_at),
+            raw_json = IF(S.observed_at < T.observed_at, S.raw_json, T.raw_json),
+            source_run_id = IF(S.observed_at < T.observed_at, S.source_run_id, T.source_run_id),
+            observed_at = LEAST(S.observed_at, T.observed_at)
         WHEN NOT MATCHED THEN
           INSERT ({columns}) VALUES ({values})
     """
@@ -132,7 +188,10 @@ def merge(client, rows, project, location, report):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-dir", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--run-dir", type=Path)
+    mode.add_argument("--import-legacy", action="store_true",
+                      help="Read old full-payload observations into the new content table; keep old table untouched")
     parser.add_argument("--project", required=True)
     parser.add_argument("--location", default="EU")
     parser.add_argument("--dry-run", action="store_true")
@@ -143,9 +202,20 @@ def main():
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f"{uuid4().hex}.json"
     report = {"status": "started", "project": args.project, "capture_dir": str(args.run_dir),
+              "identity_version": "content-v2", "import_legacy": args.import_legacy,
               "started_at": datetime.now(timezone.utc).isoformat()}
     try:
-        rows = prepare(args.run_dir)
+        if args.import_legacy:
+            from google.cloud import bigquery
+            with bigquery.Client(project=args.project, location=args.location) as client:
+                job = client.query(f"SELECT * FROM `{args.project}.clinical_raw.{LEGACY_TABLE}`", location=args.location)
+                report["legacy_read_job_id"] = job.job_id
+                legacy = list(job.result(timeout=600))
+                rows = normalize_legacy(legacy)
+                report["legacy_rows"] = len(legacy)
+                print(f"Legacy migration: {len(legacy)} raw versions -> {len(rows)} distinct content observations")
+        else:
+            rows = prepare(args.run_dir)
         report["input_rows"] = len(rows)
         if args.dry_run:
             report["status"] = "validated_only"

@@ -1,7 +1,7 @@
 version: 2
 models:
   - name: stg_api_trial_observations
-    description: "Distinct captured API payload versions. observed_at is first capture completion time; last_seen_at advances on later matching captures. No claim of complete source history."
+    description: "Distinct captured API content versions, excluding only derivedSection.miscInfoModule.versionHolder from identity. Full representative JSON is preserved; all captures remain in local raw files and pre-migration versions remain in the legacy table. observed_at is first capture completion time; last_seen_at advances on matching captures. No claim of complete source history."
     columns:
       - name: observation_id
         data_tests: [unique, not_null]
