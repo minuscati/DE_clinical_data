@@ -1,10 +1,20 @@
-# Breast Neoplasm Clinical Trial Analytics
+# Breast Neoplasm Clinical Trial Tracking & Analytics
 
-A snapshot-based data engineering learning project using **Python, BigQuery, dbt, and Power BI**. It builds a defined cohort of breast-neoplasm-related interventional trials from AACT and describes their registered phases, lead sponsor classes, and reported start years.
+A data engineering learning project using **Python, BigQuery, dbt, Docker, Kestra, and Power BI**. It builds a fixed cohort of breast-neoplasm-related interventional trials from AACT, describes their phases, sponsors, start years and geographic participation, and captures subsequent ClinicalTrials.gov API updates.
 
-**Initial baseline:** local extraction and cohort preparation, manual BigQuery loading, tested dbt transformations, and a Power BI Desktop report. A Python loader now supports replacing the same three raw tables. Daily API ingestion and scheduling are not implemented.
+**Current checkpoint (2026-10-14):** 11,211 baseline trials; four prepared snapshot tables; three Power BI pages; snapshot and API workflows containerized and manually verified; the API workflow successfully migrated from Codespaces to an Ubuntu VMware VM. Daily scheduling is configured in Kestra, but an unattended trigger-origin run still needs to be documented. Power BI Import refresh remains manual.
+
+The content-deduplication upgrade was executed successfully: **98 legacy JSON observations became 57 distinct content observations** after excluding the registry's `versionHolder` refresh marker. This is an observed migration result, not a fixed expected count for future runs. [Migration details](docs/content-deduplication.md) · [Ubuntu operation guide](docs/ubuntu-operation.md) · [Checkpoint notes](CHANGELOG.md).
 
 ## Dashboard
+
+The final [Power BI report](Dashboard/breast_trials_dashboard.pbix) has three pages:
+
+- **Phase & Sponsor:** complete-cohort trial total, phase/lead-sponsor breakdown and reported start-year trend.
+- **Country & Recruitment:** baseline trial-country participation, status filtering and a geographic map. Locations and statuses on this page come from the **2026-10-11 snapshot**, not the API latest-state table.
+- **Daily Updates:** captured trial updates by source posting date and latest captured status differences from the baseline. Summing daily distinct-trial counts gives trial-date update counts, not unique trials over the whole period. Content-version counts exclude the refresh marker; neither metric counts dated status transitions.
+
+The images below are earlier previews of the first two pages, not screenshots exported from the final three-page report:
 
 ![Power BI dashboard](docs/dashboard.png)
 
@@ -12,7 +22,7 @@ Location extension, filtered to trials whose overall status is `RECRUITING`:
 
 ![Country participation and recruitment dashboard](docs/geography_dashboard.png)
 
-Open [the Power BI report](Dashboard/breast_trials_dashboard.pbix) in Power BI Desktop. It contains imported snapshot data; refreshing requires access to the configured BigQuery project, or reconfiguring the connection to your own project.
+Open the report in Power BI Desktop. It contains imported public registry data. Refreshing requires access to the configured BigQuery project, or reconfiguring the connection to your own project.
 
 - **Total Trials:** 11,211 trials in the complete selected cohort.
 - **Phase and Lead Sponsor Class:** trial counts for each phase, split by the class of the lead sponsor.
@@ -23,6 +33,8 @@ Open [the Power BI report](Dashboard/breast_trials_dashboard.pbix) in Power BI D
 1. How many trials meet the cohort definition?
 2. How are these trials distributed across registered phases and lead sponsor classes?
 3. How are their reported start years distributed?
+4. Which countries/regions participate, and how does baseline overall trial status vary by country?
+5. Which fixed-cohort records have been captured as updated, and how do their latest captured statuses differ from the AACT baseline?
 
 These are descriptive registry analyses, not estimates of treatment efficacy or trial success. Start year is not registration year, and this trend is not a daily update-activity chart.
 
@@ -53,13 +65,24 @@ Counts may change when using another snapshot. The cohort script creates a fresh
 flowchart LR
     A[AACT flat-file ZIP] --> B[Python extraction and profiling]
     B --> C[MeSH cohort selection]
-    C --> D[Three cohort CSVs]
+    C --> D[Study / sponsor / condition CSVs]
+    A --> L[Python cohort location export]
+    L --> E
     D -->|Python loader or baseline manual upload| E[BigQuery clinical_raw]
     E --> F[dbt staging views]
     F --> G[fct_breast_trials]
     G --> H[agg_breast_phase_sponsor]
     G --> I[Power BI Import]
     H --> I
+    G --> J[Country / status aggregate]
+    E --> J
+    J --> I
+    K[Kestra + Docker on Ubuntu] --> U[API date-window capture]
+    U --> R[Immutable raw JSON and manifests]
+    R --> V[Python content-key MERGE]
+    V --> W[BigQuery content observations]
+    W --> X[dbt activity + baseline comparison]
+    X --> I
 ```
 
 `studies` has one row per trial; `sponsors` and condition labels have multiple rows per trial. The mart joins only the lead sponsor, after checking that each selected trial has exactly one. It does not join every sponsor and condition row into a flat trial table, which would multiply records.
@@ -70,6 +93,10 @@ dbt models:
 - `stg_breast_sponsors`: standardizes sponsor relationships and categories.
 - `fct_breast_trials`: one row per trial, with its lead sponsor and derived start year.
 - `agg_breast_phase_sponsor`: one row per phase and lead sponsor class, with `trial_count`.
+- `stg_breast_locations` and `agg_breast_country_status`: baseline facility records and deduplicated trial-country counts.
+- `stg_api_trial_observations`: reads the physical `api_trial_content_observations` table through the logical dbt source name.
+- `mart_trial_status_comparison`: latest captured API status versus the currently loaded baseline.
+- `agg_daily_trial_activity`: distinct trial counts and distinct captured content observations by update posting date.
 
 `breast_conditions` is loaded as a raw source for cohort traceability and later analysis; this initial dbt mart does not transform it.
 
@@ -165,7 +192,7 @@ If the raw text files have not been extracted, add `--zip "C:\path\to\aact_snaps
 
 Each step has a separate log under `logs/batch/<run-id>/`, with a `report.json` recording commands, timestamps, exit codes, and overall status. A nonzero exit code stops the pipeline before downstream steps start. BigQuery load details remain in the loader's separate report. This prevents dbt from running after an unsuccessful load; it is not a rollback or a cross-table transaction. Run only one batch/loader at a time.
 
-The command is manually triggered. Scheduling is a subsequent improvement.
+This snapshot batch remains manually triggered. The separate API workflow has a daily Kestra trigger.
 
 ### Optional location data
 
@@ -186,7 +213,7 @@ New dbt models:
 
 Missing country is shown as `MISSING`. Trials with no facility records are absent from country statistics but remain in the overall cohort; coverage is recorded in `locations_summary.json`. A trial's overall recruitment status does not establish whether every facility is actively recruiting; facility status is stored separately. Do not present country participation as national ownership or registry completeness.
 
-The location extension adds 2 models and 7 dbt tests (31 tests including the initial 24). After loading all four sources, `dbt build` can include all models. Until then, exclude `tag:locations`. The original runner automatically excludes those models/tests unless `--with-locations` is supplied.
+The location extension adds 2 models and 7 dbt tests (31 baseline tests including the initial 24). After loading all four snapshot sources, build the baseline with `--exclude tag:api_updates`. Until locations are loaded, also exclude `tag:locations`. A full build including API models requires the content-observation table. The snapshot runner automatically excludes API models and excludes location models unless `--with-locations` is supplied.
 
 To rebuild everything including locations with one command:
 
@@ -198,7 +225,7 @@ This rebuilds the base cohort and its locations from the same ZIP, then loads fo
 
 ### Docker in GitHub Codespaces
 
-Docker support is prepared for validation in Codespaces; the image must be built and tested there before treating container execution as verified. No local Windows Docker installation is required. This does not schedule execution or refresh Power BI.
+Docker execution was verified in Codespaces and subsequently in an Ubuntu VMware VM. No Windows Docker Desktop installation is required. These instructions describe the original Codespaces setup; use the [Ubuntu guide](docs/ubuntu-operation.md) for the current runtime. Containerization alone does not schedule execution or refresh Power BI.
 
 In the Codespaces **Linux terminal**, at the repository root:
 
@@ -225,7 +252,7 @@ docker run --rm \
 
 This only validates CSVs and writes a local report; it requires no Google authentication. The location summary's content hashes remain valid when files are moved to Linux.
 
-For full cloud execution, configure a local ignored dbt profile and Application Default Credentials in Codespaces, then mount the profile and credentials at runtime (read-only), together with data and writable logs. Do not copy credentials into the image. Full `run_batch.py --with-locations` additionally needs the original AACT ZIP; processed CSVs alone are sufficient only for the loader and subsequent dbt execution. Authentication/mount instructions will be validated after the basic container works.
+For BigQuery execution, configure a local ignored dbt profile and Application Default Credentials, then mount the profile and credentials at runtime (read-only), together with data and writable logs. Do not copy credentials into the image. Full `run_batch.py --with-locations` additionally needs the original AACT ZIP; processed CSVs alone are sufficient for the loader and subsequent dbt execution. BigQuery connectivity and the API workflow were verified in the Ubuntu VM.
 
 Codespaces is a development environment: when it stops, local Docker services and schedules stop too.
 
@@ -256,7 +283,7 @@ docker run --rm \
 
 Optional `--end-date` supports date ranges (both bounds inclusive). Each run is saved in `data/raw/ctgov_updates/<start>_<end>/<run-id>/`: full `page_*.json`, per-page request metadata, a manifest, and a completed `cohort_updates.jsonl`. A failed/partial run keeps raw evidence and a failed manifest, but never publishes its matched output. HTTP transient errors have bounded retries; mismatched counts or repeated tokens fail rather than quietly accepting incomplete results. Zero updates can be a valid completed run.
 
-The API exposes current/latest records, not every historical version. A historical date filter cannot recover a record's old state if it has since been updated again. We will collect observation history going forward; this capture alone is not a complete change log or a latest-trial warehouse update. Reruns retain separate raw captures; warehouse deduplication will be added before loading them.
+The API exposes current/latest records, not every historical version. A historical date filter cannot recover a record's old state if it has since been updated again. The project retains captured observation history, but it is not a complete source change log or an all-trial latest-state warehouse. Reruns retain separate raw captures; the observation loader deduplicates their normalized content before downstream analytics.
 
 ### API observations and baseline comparison
 
@@ -288,7 +315,7 @@ The snapshot runner and updated `clinical_snapshot` flow exclude `tag:api_update
 
 `orchestration/flows/clinical_daily_updates.yml` runs three sequential Docker tasks: API capture, observation merge, and dbt builds/tests. The Kestra execution ID becomes the capture directory name so tasks share the correct run without relying on a mutable "latest file". A new full execution creates a new capture; retrying an existing capture task against the same directory is deliberately rejected rather than overwriting evidence. Run the new workflow manually before enabling its trigger.
 
-Its daily trigger is **disabled by default** with host-path placeholders. Once tested, replace both paths and enable it for 08:00 Europe/Stockholm. Each scheduled run queries the three previous calendar days to provide overlap for delayed publication; deduplication prevents repeated payloads from adding rows. This is a bounded overlap, not a guarantee of complete source history. `recoverMissedSchedules: NONE` prevents a backlog of scheduled executions when Codespaces resumes. After longer outages, manually request a wider date range, recognizing that the API only exposes current records. Codespaces must be running for scheduling; reliable always-on deployment is a separate step. Do not run the snapshot flow/manual loaders concurrently with this flow.
+The committed trigger is **disabled by default** with host-path placeholders, an 08:00 Europe/Stockholm schedule and the three previous calendar days as inputs. The deployed flow is configured in the Kestra UI; edit its paths, enable flag and timing there. The [Ubuntu guide](docs/ubuntu-operation.md) also describes a 17:00 schedule including today's posting date, recommended after same-day records appeared later than the morning query. That alternative is not silently applied to the committed template or the running VM. Overlap and content deduplication reduce missed records and repeated inserts, but do not guarantee complete source history. `recoverMissedSchedules: NONE` prevents a backlog when the runtime resumes. After an outage, manually request a suitable wider range. Scheduling requires the Docker host and Kestra to be running; a local VM also requires Windows to remain awake. Do not run snapshot/manual loaders or a second environment's workflow concurrently.
 
 `agg_daily_trial_activity` counts **distinct existing-cohort trials** by last update posting date, alongside captured payload-version counts. Repeated captures do not inflate trial counts. Zero-update runs remain in local manifests; absent activity-table dates must not be filled with zeros and presented as validated no-activity days. Complete coverage tracking in a warehouse run-audit table is a future improvement. These metrics are not new registrations or the number of trial status transitions.
 
@@ -298,11 +325,13 @@ For the initial 2026-10-13 capture, expected `updated_trials` is 42. More captur
 
 Use **Get data → Google BigQuery**, authorize the Google account with access to your project, and choose **Import**. Set the Billing Project ID to your project ID.
 
-Load `clinical_analytics.agg_breast_phase_sponsor` and `clinical_analytics.fct_breast_trials`:
+Load `clinical_analytics.agg_breast_phase_sponsor` and `clinical_analytics.fct_breast_trials` for the first page:
 
 - Stacked column: `phase` on X, **SUM** of `trial_count` on Y, `sponsor_class` as legend.
 - Card: **SUM** of `trial_count`; baseline total 11,211.
 - Line: `start_year` on X, **distinct count** of `nct_id` on Y; filter non-null years ≤ 2025 for the baseline report.
+
+The second page uses `agg_breast_country_status`. The third uses `agg_daily_trial_activity` and `mart_trial_status_comparison`; filter the status-difference table to `status_differs_from_baseline = true`, and use `api_last_update_posted_date` for source update dates rather than capture timestamps. A categorical `activity_date` axis displays dates without interpolated hourly ticks. Power BI Service publication and scheduled refresh are not configured in this checkpoint.
 
 The two imported tables are used independently in this version. Do not assume a slicer on one will filter the other. Updating BigQuery does not automatically update the imported report: refresh Power BI after rebuilding the dbt models. Update the snapshot annotation and complete-year cutoff when using a new snapshot.
 
@@ -310,27 +339,32 @@ The two imported tables are used independently in this version. Do not assume a 
 
 Python profiling checks missing identifiers, malformed rows, duplicate trial IDs, and child-table orphans. Cohort construction checks study uniqueness and exactly one lead sponsor per trial.
 
-dbt includes **24 data tests** covering:
+The current dbt manifest contains **9 models and 42 data tests**, covering:
 
 - Identifier uniqueness, non-null fields, and accepted study types/sponsor roles.
 - Sponsor-to-study and mart-to-staging relationships.
 - Exactly one lead sponsor per trial.
 - Date/enrollment conversion failures.
 - Row-count preservation and aggregate total/key consistency.
+- API observation uniqueness, baseline relationships and daily-count consistency.
+
+The Python suite has **25 tests** and passed after the content-identity fix; dbt parsing also passed. VM logs documented a successful three-task API execution in about 44.5 seconds, and the content migration reported 98 → 57 observations. These are distinct checks: local parsing is not a cloud build, and manual execution is not evidence of an unattended scheduled run.
 
 The baseline staged build passed **15 nodes** (2 models and 13 tests); this is not a count of 15 tests. Later mart and aggregate builds were also completed successfully during the guided project. Run `dbt build` against your own warehouse to validate a reproduction.
 
 ## Limitations and next steps
 
-- Single snapshot; manual download and manually invoked loader/dbt. The baseline used manual upload; the new loader replaces that step. No scheduled pipeline or daily API updates yet.
+- One fixed baseline snapshot; snapshot download and cohort refresh remain manual. Daily API capture/merge/dbt are implemented, but do not discover new cohort members or replace baseline geography.
+- Local Ubuntu/VMware runtime: Windows must remain awake, the VM must not be suspended, and Docker/Kestra must be running at the scheduled time. No paid always-on cloud runtime or Terraform deployment is implemented.
+- Captured source history is incomplete; overlapping date queries cannot recover versions already superseded before capture. Missing activity dates do not prove zero updates.
 - Registry dates can be actual or anticipated. Enrollment retains the actual/anticipated type and should not be pooled without considering it.
 - `NA` phase is not applicable; `MISSING` represents a missing source value. Sponsor `OTHER` is preserved and is not relabeled as academic.
 - Historical registry coverage and reporting delays affect trends; annual counts alone do not establish changes in research investment.
 - Power BI Import is a snapshot, not a real-time dashboard.
 - Local credentials, the virtual environment, raw datasets, and generated dbt artifacts are excluded from the repository. The `.pbix` contains imported public registry data and the baseline project connection metadata.
 
-Planned improvements: pipeline orchestration, daily API ingestion with trial-level updates and daily activity history, then infrastructure and CI checks.
+Remaining checkpoint work: retain trigger-origin execution evidence and export final report previews. Optional next-version improvements: latest-state geographic models, a warehouse ingestion-audit table, Power BI Service refresh, broader cohort discovery, CI and infrastructure-as-code.
 
 ## Acknowledgements
 
-Inspired by [ClinicalTrialIntelligence / BenchMark](https://github.com/syedshameersarwar/ClinicalTrialIntelligence) and the [DataTalksClub Data Engineering Zoomcamp](https://github.com/DataTalksClub/data-engineering-zoomcamp). This initial version uses a focused MeSH-defined cohort, Python preparation, and Power BI; it does not reproduce the reference project's Spark, Kafka/Flink, or scheduled daily activity pipeline.
+Inspired by [ClinicalTrialIntelligence / BenchMark](https://github.com/syedshameersarwar/ClinicalTrialIntelligence) and the [DataTalksClub Data Engineering Zoomcamp](https://github.com/DataTalksClub/data-engineering-zoomcamp). This project uses a focused MeSH-defined cohort, Python batch/API capture and Power BI; it does not reproduce the reference project's Spark or Kafka/Flink components.

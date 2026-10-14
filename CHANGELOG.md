@@ -1,0 +1,28 @@
+# Checkpoint history
+
+## 2026-10-14 — Ubuntu runtime and three-page report
+
+- Final Power BI artifact includes Phase & Sponsor, Country & Recruitment,
+  and Daily Updates pages. The report archive passed a ZIP integrity check;
+  its three page names were verified from report definitions.
+- Docker and BigQuery/dbt connectivity verified in an Ubuntu VMware VM.
+  The manually executed API flow completed capture, merge, and dbt in about
+  44.5 seconds according to supplied VM logs.
+- Fixed false content-version growth caused by
+  `derivedSection.miscInfoModule.versionHolder`. Only that refresh marker is
+  excluded from content identity; genuine changes and complete raw captures
+  remain traceable.
+- Added a non-destructive importer and a separate physical content-observation
+  table. The reported migration verified **98 legacy rows → 57 content rows**.
+- Updated dbt source mapping without changing downstream Power BI table names.
+- Validation after the fix: **25 Python tests passed**, dbt parse passed;
+  current manifest contains **9 models and 42 tests**. The cloud rebuild after
+  migration must be checked independently from local parsing.
+- Added Ubuntu startup, shutdown, manual date-window, upgrade and scheduling
+  documentation. Existing README images are explicitly labeled older previews.
+
+Remaining evidence: an unattended trigger-origin execution, final full-page
+screenshots and post-migration cloud-build verification. Scheduling is configured,
+not an always-on deployment. Power BI refresh is manual; geography remains the
+2026-10-11 baseline; cohort discovery, full source history, Terraform and
+Kafka/Flink are outside this checkpoint.
