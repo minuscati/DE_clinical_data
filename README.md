@@ -2,9 +2,29 @@
 
 A data engineering learning project using **Python, BigQuery, dbt, Docker, Kestra, and Power BI**. It builds a fixed cohort of breast-neoplasm-related interventional trials from AACT, describes their phases, sponsors, start years and geographic participation, and captures subsequent ClinicalTrials.gov API updates.
 
-**Current checkpoint (2026-10-14):** 11,211 baseline trials; four prepared snapshot tables; three Power BI pages; snapshot and API workflows containerized and manually verified; the API workflow successfully migrated from Codespaces to an Ubuntu VMware VM. Daily scheduling is configured in Kestra, but an unattended trigger-origin run still needs to be documented. Power BI Import refresh remains manual.
+**Current checkpoint (2026-10-19):** 11,211 baseline trials; four prepared snapshot tables; nine dbt models with 42 data tests; three Power BI pages; containerized snapshot and API workflows. The previously documented API workflow was manually verified in an Ubuntu VMware VM. This review reran all 25 Python tests successfully and synchronized the locally saved Power BI report. An unattended trigger-origin run still needs to be documented. Power BI Import refresh remains manual.
 
 The content-deduplication upgrade was executed successfully: **98 legacy JSON observations became 57 distinct content observations** after excluding the registry's `versionHolder` refresh marker. This is an observed migration result, not a fixed expected count for future runs. [Migration details](docs/content-deduplication.md) · [Ubuntu operation guide](docs/ubuntu-operation.md) · [Checkpoint notes](CHANGELOG.md).
+
+## Implementation status
+
+Implemented in the current repository:
+
+- **Snapshot preparation:** stream/extract AACT flat files, profile identifiers and relationships, select the MeSH-defined interventional cohort, and export studies, sponsors, conditions and facilities. The baseline remains **2026-10-11**, with **11,211 trials**.
+- **Warehouse loading:** validate CSV schemas, counts and cohort relationships before BigQuery writes; replace prepared snapshot tables with `WRITE_TRUNCATE`; retain file hashes, job IDs and load reports. A sequential batch runner stops downstream work after a failed step.
+- **Analytics engineering:** nine dbt models provide trial facts, phase/sponsor summaries, baseline country/status participation, captured update activity and latest captured status versus baseline. The project defines 42 data tests.
+- **API update capture:** query inclusive posting-date windows, paginate with bounded retries, select existing-cohort IDs, and retain immutable raw responses and manifests. Content-key `MERGE` deduplicates repeat captures while preserving genuine differences and capture timestamps; a legacy importer handles the earlier full-payload identity.
+- **Orchestration and runtime:** Docker packages the scripts and dbt project; Kestra defines a two-task prepared-snapshot flow and a three-task API flow. Ubuntu/VMware startup, authentication, scheduling and recovery steps are documented. The API schedule template is disabled until deployment paths are configured and the trigger is enabled.
+- **Reporting:** a Power BI Import report contains Phase & Sponsor, Country & Recruitment, and Daily Updates. The current local save is included; the page definitions remain unchanged from the October 14 checkpoint.
+
+Verification at this review: **25 Python tests passed**, dbt parsing passed, the manifest contains **9 models / 42 data tests**, and the current `.pbix` passed archive integrity and three-page definition checks. Previously recorded batch/load reports show successful snapshot execution. The Ubuntu manual run and 98-to-57 migration result remain historical checkpoint evidence; this review did not rerun the VM workflow or a BigQuery build, inspect the deployed trigger, or visually validate the report in Power BI Desktop.
+
+Still pending or outside this version:
+
+- Evidence of an unattended scheduled API execution and a post-migration cloud dbt build; final report screenshots.
+- Automated snapshot download/cohort renewal, admission of newly registered trials, immutable historical baselines and current API-based geography.
+- Warehouse ingestion coverage/audit tables, Power BI Service publication and scheduled refresh, CI, Terraform and an always-on deployment.
+- Spark, Kafka and Flink components from the inspiration project. The implemented path uses Python batch/API ingestion instead.
 
 ## Dashboard
 
@@ -221,7 +241,7 @@ To rebuild everything including locations with one command:
 .venv\Scripts\python.exe src\run_batch.py --project YOUR_GCP_PROJECT_ID --snapshot-date 2026-10-11 --zip "C:\path\to\aact_snapshot.zip" --with-locations
 ```
 
-This rebuilds the base cohort and its locations from the same ZIP, then loads four tables and runs all dbt models/tests. As with the original loader, these four replacements are not a single transaction.
+This rebuilds the base cohort and its locations from the same ZIP, then loads four tables and runs the snapshot dbt models/tests, excluding `tag:api_updates`. As with the original loader, these four replacements are not a single transaction.
 
 ### Docker in GitHub Codespaces
 
@@ -348,7 +368,7 @@ The current dbt manifest contains **9 models and 42 data tests**, covering:
 - Row-count preservation and aggregate total/key consistency.
 - API observation uniqueness, baseline relationships and daily-count consistency.
 
-The Python suite has **25 tests** and passed after the content-identity fix; dbt parsing also passed. VM logs documented a successful three-task API execution in about 44.5 seconds, and the content migration reported 98 → 57 observations. These are distinct checks: local parsing is not a cloud build, and manual execution is not evidence of an unattended scheduled run.
+The Python suite has **25 tests**, all rerun successfully on **2026-10-19**; dbt parsing also passed during this review. Previously supplied VM logs documented a successful three-task API execution in about 44.5 seconds, and the content migration reported 98 → 57 observations. These are distinct checks: local parsing is not a cloud build, and manual execution is not evidence of an unattended scheduled run.
 
 The baseline staged build passed **15 nodes** (2 models and 13 tests); this is not a count of 15 tests. Later mart and aggregate builds were also completed successfully during the guided project. Run `dbt build` against your own warehouse to validate a reproduction.
 
