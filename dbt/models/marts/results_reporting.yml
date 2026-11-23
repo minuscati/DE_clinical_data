@@ -1,0 +1,51 @@
+version: 2
+models:
+  - name: fct_results_reporting
+    description: >
+      One row per trial in the cohort (all 11,211, not only in-scope ones).
+      Six boolean rule columns (r1-r6) define the FDAAA 801 compliance cohort;
+      in_scope is their AND. reporting_status is NULL for out-of-scope trials,
+      and exclusion_reason is NULL for in-scope trials.
+    columns:
+      - name: nct_id
+        description: "Unique trial identifier; the grain of this table."
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_breast_studies')
+                field: nct_id
+      - name: in_scope
+        description: "True when all six cohort rules pass."
+        data_tests:
+          - not_null
+      - name: reporting_status
+        description: "Compliance category for in-scope trials; NULL means not applicable."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ON_TIME', 'LATE', 'EXTENSION_REQUESTED', 'OVERDUE_NOT_REPORTED']
+      - name: exclusion_reason
+        description: "First cohort rule the trial fails; NULL for in-scope trials."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['1_not_actually_completed', '2_completed_before_2017',
+                         '3_not_fda_regulated', '4_phase_1', '4b_no_us_site',
+                         '5_deadline_not_passed']
+
+  - name: agg_results_reporting_by_sponsor
+    description: >
+      One row per lead sponsor class, in-scope trials only.
+      on_time_rate excludes EXTENSION_REQUESTED trials from the denominator,
+      because their outcome is not yet known.
+    columns:
+      - name: lead_sponsor_class
+        description: "Grain of this table."
+        data_tests:
+          - not_null
+          - unique
+      - name: total_trials
+        data_tests:
+          - not_null
