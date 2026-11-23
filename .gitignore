@@ -15,3 +15,11 @@ config/.user.yml
 !.env.example
 .pbi/
 *.pbix.lock
+
+# R / RStudio session files and rendered reports
+.Rhistory
+.RData
+.Rproj.user/
+analysis/**/*.html
+analysis/**/*_files/
+Rplots.pdf

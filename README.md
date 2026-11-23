@@ -2,6 +2,8 @@
 
 A data engineering learning project using **Python, BigQuery, dbt, Docker, Kestra, and Power BI**. It builds a fixed cohort of breast-neoplasm-related interventional trials from AACT, describes their phases, sponsors, start years and geographic participation, and captures subsequent ClinicalTrials.gov API updates.
 
+**Analysis built on this pipeline:** [Timeliness of results reporting under FDAAA 801](analysis/results_reporting/README.md) — an exploratory study of whether breast cancer trials submit results on time, and how industry and academic sponsors differ.
+
 **Current checkpoint (2026-10-19):** 11,211 baseline trials; four prepared snapshot tables; nine dbt models with 42 data tests; three Power BI pages; containerized snapshot and API workflows. The previously documented API workflow was manually verified in an Ubuntu VMware VM. This review reran all 25 Python tests successfully and synchronized the locally saved Power BI report. An unattended trigger-origin run still needs to be documented. Power BI Import refresh remains manual.
 
 The content-deduplication upgrade was executed successfully: **98 legacy JSON observations became 57 distinct content observations** after excluding the registry's `versionHolder` refresh marker. This is an observed migration result, not a fixed expected count for future runs. [Migration details](docs/content-deduplication.md) · [Ubuntu operation guide](docs/ubuntu-operation.md) · [Checkpoint notes](CHANGELOG.md).
