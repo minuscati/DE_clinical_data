@@ -1,9 +1,10 @@
 -- =====================================================================
 -- Results-reporting analysis — Step 2: export for R
 -- Run in the BigQuery console, then: Save results -> CSV (local file).
--- Save it as analysis/results_reporting/data/results_reporting.csv
--- (data/ is git-ignored). All 11,211 trials are exported, not only the
--- in-scope ones, because the funnel figure needs the excluded trials too.
+-- Save it as data/results_reporting.csv in the repository root (data/ is
+-- git-ignored); 03_compliance_analysis.qmd reads it from there. All 11,211
+-- trials are exported, not only the in-scope ones, because the cohort funnel
+-- needs the excluded trials too.
 -- =====================================================================
 select
   nct_id,

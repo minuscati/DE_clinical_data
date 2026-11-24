@@ -85,8 +85,10 @@ order by 1;
 
 
 -- ---------------------------------------------------------------------
--- D. Draft cohort funnel
+-- D. Draft cohort funnel (early exploration)
 --    Each row shows how many trials survive up to that rule.
+--    This draft predates the US-site rule and does not reproduce the final
+--    568-trial cohort; that cohort is defined in fct_results_reporting.
 --    Flag spellings ('t') and phase labels ('PHASE1', 'EARLY_PHASE1') were
 --    confirmed with query B.
 -- ---------------------------------------------------------------------

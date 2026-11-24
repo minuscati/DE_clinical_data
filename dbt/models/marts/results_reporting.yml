@@ -2,10 +2,11 @@ version: 2
 models:
   - name: fct_results_reporting
     description: >
-      One row per trial in the cohort (all 11,211, not only in-scope ones).
-      Six boolean rule columns (r1-r6) define the FDAAA 801 compliance cohort;
-      in_scope is their AND. reporting_status is NULL for out-of-scope trials,
-      and exclusion_reason is NULL for in-scope trials.
+      One row per trial in the base cohort (all 11,211, not only in-scope ones).
+      Six boolean rule columns (r1-r6) approximate the analytic cohort from
+      registry fields; they do not adjudicate legal ACT status. in_scope is
+      their AND. reporting_status is NULL for out-of-scope trials, and
+      exclusion_reason is NULL for in-scope trials.
     columns:
       - name: nct_id
         description: "Unique trial identifier; the grain of this table."
@@ -21,11 +22,18 @@ models:
         data_tests:
           - not_null
       - name: reporting_status
-        description: "Compliance category for in-scope trials; NULL means not applicable."
+        description: >
+          Status under the deadline scenario (primary completion + 12 months, or
+          + 36 months when a delay-related record is present). An analysis
+          assumption, not a verified legal deadline. NULL for out-of-scope trials.
         data_tests:
           - accepted_values:
               arguments:
                 values: ['ON_TIME', 'LATE', 'EXTENSION_REQUESTED', 'OVERDUE_NOT_REPORTED']
+      - name: extension_requested
+        description: >
+          True when disposition_first_submitted_date is present (a delay-related
+          record). Type and validity of the request are not recorded.
       - name: exclusion_reason
         description: "First cohort rule the trial fails; NULL for in-scope trials."
         data_tests:
@@ -37,9 +45,10 @@ models:
 
   - name: agg_results_reporting_by_sponsor
     description: >
-      One row per lead sponsor class, in-scope trials only.
-      on_time_rate excludes EXTENSION_REQUESTED trials from the denominator,
-      because their outcome is not yet known.
+      One row per lead sponsor class, in-scope trials only. Counts follow the
+      deadline scenario in fct_results_reporting. on_time_rate excludes
+      EXTENSION_REQUESTED trials from the denominator, because their status
+      under the scenario is not yet determined.
     columns:
       - name: lead_sponsor_class
         description: "Grain of this table."

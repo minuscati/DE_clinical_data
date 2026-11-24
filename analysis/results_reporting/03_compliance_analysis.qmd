@@ -1,5 +1,5 @@
 ---
-title: "Results-reporting compliance of breast cancer trials (FDAAA 801)"
+title: "Timeliness of results submission in breast cancer trials: exploratory pilot"
 format:
   html:
     embed-resources: true
@@ -9,9 +9,9 @@ execute:
   message: false
 ---
 
-Exploratory analysis of the in-scope cohort built by the dbt model
-`fct_results_reporting`. Input: the export produced by `02_export_for_r.sql`.
-Figures are written to `figures/`.
+Exploratory, unadjusted analysis of the analytic cohort built by the dbt model
+`fct_results_reporting`. Input: `data/results_reporting.csv` in the repository
+root, exported with `02_export_for_r.sql`. Figures are written to `figures/`.
 
 ## 0. Setup
 
@@ -25,9 +25,9 @@ library(survminer)
 snapshot_date <- as.Date("2026-10-11")   # same as the dbt var snapshot_date
 dir.create("figures", showWarnings = FALSE)
 
-trials <- read_csv("../../data/results_reporting_.csv", show_col_types = FALSE)
+trials <- read_csv("../../data/results_reporting.csv", show_col_types = FALSE)
 
-# Conservation check against dbt: total trials and in-scope trials.
+# Conservation check against dbt: 11,211 trials in total, 568 in scope.
 nrow(trials)
 sum(trials$in_scope)
 
@@ -36,8 +36,8 @@ cohort <- trials |> filter(in_scope)
 
 ## 1. Cohort funnel
 
-How the 11,211 registered trials narrow down to the trials that had to report
-results. Each excluded trial is counted once, at the first rule it fails.
+Each excluded trial is counted once, at the first rule it fails. The rules
+define the analytic cohort; they do not adjudicate legal ACT status.
 
 ```{r}
 funnel <- trials |>
@@ -57,14 +57,12 @@ ggplot(funnel, aes(x = n, y = reorder(exclusion_reason, desc(exclusion_reason)))
 ggsave("figures/01_funnel.png", width = 7, height = 3.5, dpi = 300)
 ```
 
-## 2. On-time rate by sponsor, with 95% confidence intervals
+## 2. Sponsor groups
 
-On-time rate = ON_TIME / trials whose outcome is known, i.e. trials still within
-a requested extension (EXTENSION_REQUESTED) are left out of the denominator,
-as in the dbt model.
-
-The small sponsor classes (NIH, NETWORK, OTHER_GOV) are pooled as
-"GOV_NETWORK". Confidence intervals are exact (Clopper-Pearson).
+Formal comparisons use the registry lead sponsor classes `INDUSTRY` and
+`OTHER`. `OTHER` has not been independently classified as academic. The
+remaining government and network trials (NIH, NETWORK, OTHER_GOV) contribute to
+cohort totals only.
 
 ```{r}
 cohort <- cohort |>
@@ -72,93 +70,96 @@ cohort <- cohort |>
     lead_sponsor_class %in% c("INDUSTRY", "OTHER") ~ lead_sponsor_class,
     TRUE ~ "GOV_NETWORK"
   ))
+count(cohort, sponsor_group)
 
-rates <- cohort |>
+two_groups <- cohort |> filter(sponsor_group %in% c("INDUSTRY", "OTHER"))
+```
+
+## 3. Common benchmark: submission within 365 days
+
+First results submission within 365 days of primary completion, irrespective
+of delay-related records. Missing submissions count as not meeting the
+benchmark. This is 365 days, not 12 calendar months. Four trials with a
+submission date before primary completion are retained and count as within 365 days.
+
+```{r}
+two_groups <- two_groups |>
+  mutate(within_365 = coalesce(
+    results_first_submitted_date <= primary_completion_date + 365,
+    FALSE
+  ))
+
+within_365 <- two_groups |>
+  group_by(sponsor_group) |>
+  summarise(submitted = sum(within_365), n = n(), share = submitted / n,
+            .groups = "drop")
+within_365
+
+prop.test(x = within_365$submitted, n = within_365$n)
+```
+
+## 4. Deadline scenario
+
+Scenario deadline: primary completion + 12 calendar months, or + 36 calendar
+months when `disposition_first_submitted_date` is present. This field is used
+only as a delay-related indicator (exported as `extension_requested`); the
+analysis does not establish the legal basis, validity or applicable deadline of
+each record. The 36-month allowance is an assumption.
+
+Status categories from dbt: `ON_TIME` (submitted by the scenario deadline),
+`LATE`, `OVERDUE_NOT_REPORTED`, and `EXTENSION_REQUESTED` (unsubmitted, still
+within the 36-month allowance). The last group is excluded from scenario-based
+proportions only.
+
+```{r}
+# All in-scope trials
+cohort |> count(reporting_status) |> mutate(share = n / sum(n))
+sum(cohort$reporting_status == "ON_TIME") /
+  sum(cohort$reporting_status != "EXTENSION_REQUESTED")
+```
+
+```{r}
+# By sponsor group, with exact (Clopper-Pearson) 95% CIs
+scenario <- two_groups |>
   filter(reporting_status != "EXTENSION_REQUESTED") |>
   group_by(sponsor_group) |>
   summarise(on_time = sum(reporting_status == "ON_TIME"),
-            decided = n(),
+            n = n(),
             .groups = "drop") |>
   mutate(
-    rate  = on_time / decided,
-    ci_lb = mapply(function(x, n) binom.test(x, n)$conf.int[1], on_time, decided),
-    ci_ub = mapply(function(x, n) binom.test(x, n)$conf.int[2], on_time, decided)
+    share = on_time / n,
+    ci_lb = mapply(function(x, n) binom.test(x, n)$conf.int[1], on_time, n),
+    ci_ub = mapply(function(x, n) binom.test(x, n)$conf.int[2], on_time, n)
   )
-rates
+scenario
+
+prop.test(x = scenario$on_time, n = scenario$n)
 ```
 
-The interval for GOV_NETWORK is wide because the group is small.
-
-## 3. Industry vs other sponsors: two-proportion test
-
 ```{r}
-two <- rates |> filter(sponsor_group %in% c("INDUSTRY", "OTHER"))
-two
-prop.test(x = two$on_time, n = two$decided)
-```
-
-## 3b. Sensitivity analysis: does the extension rule drive the sponsor difference?
-
-Two checks: (1) whether extension requests are more common among industry
-trials, and (2) the sponsor comparison repeated with a strict 12-month deadline
-for every trial, i.e. without the 36-month allowance for extensions.
-
-```{r}
-# (1) Share of trials with an extension request, by sponsor group
-ext <- cohort |>
+# Frequency of delay-related records by sponsor group
+delay_records <- two_groups |>
   group_by(sponsor_group) |>
-  summarise(
-    n        = n(),
-    n_ext    = sum(extension_requested),
-    ext_rate = mean(extension_requested),
-    .groups = "drop"
-  )
-ext
+  summarise(with_record = sum(extension_requested), n = n(),
+            share = with_record / n, .groups = "drop")
+delay_records
 
-ext_two <- ext |> filter(sponsor_group %in% c("INDUSTRY", "OTHER"))
-prop.test(x = ext_two$n_ext, n = ext_two$n)
+prop.test(x = delay_records$with_record, n = delay_records$n)
 ```
 
-```{r}
-# (2) Strict definition: results submitted within 365 days of primary
-# completion. Trials without a submission count as not on time.
-cohort <- cohort |>
-  mutate(
-    strict_on_time = coalesce(
-      results_first_submitted_date <= primary_completion_date + 365,
-      FALSE
-    )
-  )
+The deadline rule and the denominator both differ between sections 3 and 4,
+so the comparison cannot isolate the effect of delayed-submission provisions.
 
-# All trials are in the denominator, including EXTENSION_REQUESTED: the
-# 12-month deadline has passed for every in-scope trial, so the outcome is known.
-strict <- cohort |>
-  filter(sponsor_group %in% c("INDUSTRY", "OTHER")) |>
-  group_by(sponsor_group) |>
-  summarise(
-    on_time = sum(strict_on_time),
-    n       = n(),
-    rate    = on_time / n,
-    .groups = "drop"
-  )
-strict
+## 5. Time to first results submission (Kaplan–Meier)
 
-prop.test(x = strict$on_time, n = strict$n)
-```
-
-## 4. Time to results submission (Kaplan–Meier)
-
-The binary on-time rate ignores timing: a trial that reports on day 366 counts
-the same as one that never reports. A time-to-event analysis keeps it.
-
-- Time origin: primary completion date.
-- Event: results first submitted.
-- Censoring: trials with no submission yet are censored at the snapshot date.
-- Trials with results submitted before primary completion (a registry anomaly,
-  flagged by a dbt warning test) are given time 0.
+- Time origin: primary completion date; event: first results submission.
+- Unsubmitted trials are censored at the snapshot date.
+- Months = days / 30.4375.
+- The four trials with a submission date before primary completion get event
+  time 0. These records need review.
 
 ```{r}
-km_data <- cohort |>
+km_data <- two_groups |>
   mutate(
     event = as.integer(!is.na(results_first_submitted_date)),
     end_date = coalesce(results_first_submitted_date, snapshot_date),
@@ -166,37 +167,30 @@ km_data <- cohort |>
     time_months = time_days / 30.4375
   )
 
-# Every in-scope trial has passed its 12-month deadline, so no trial is
-# censored before 12 months.
+# Censoring times: every in-scope trial has at least 12 months of follow-up.
 summary(km_data$time_months[km_data$event == 0])
-```
 
-```{r}
-km_two <- km_data |> filter(sponsor_group %in% c("INDUSTRY", "OTHER"))
-km_fit <- survfit(Surv(time_months, event) ~ sponsor_group, data = km_two)
+km_fit <- survfit(Surv(time_months, event) ~ sponsor_group, data = km_data)
 
-# Log-rank test
-survdiff(Surv(time_months, event) ~ sponsor_group, data = km_two)
+# Log-rank test of the full curves
+survdiff(Surv(time_months, event) ~ sponsor_group, data = km_data)
 
-# Share not yet submitted at 12, 24 and 36 months
+# Survival S(t) at 12, 24 and 36 months; cumulative submission is 1 - S(t)
 summary(km_fit, times = c(12, 24, 36))
 ```
 
-1 − S(12) is close to, but not the same as, the on-time rate in section 2:
-the on-time rate uses the legal deadline (36 months for trials with an
-extension request), whereas the Kaplan–Meier estimate at 12 months does not.
-
 ```{r}
-# fun = "event" plots the cumulative share with results submitted (1 - S).
+# fun = "event" plots cumulative submission, 1 - S(t).
 p <- ggsurvplot(
-  km_fit, data = km_two,
+  km_fit, data = km_data,
   fun = "event", conf.int = TRUE, risk.table = TRUE,
   xlim = c(0, 60), break.time.by = 12,
   xlab = "Months since primary completion",
   ylab = "Share with results submitted",
-  legend.title = "Lead sponsor", legend.labs = c("Industry", "Other (mainly academic)"),
+  legend.title = "Lead sponsor class", legend.labs = c("Industry", "Other"),
   pval = TRUE, ggtheme = theme_minimal()
 )
+# 12-month reference line, not a trial-specific legal deadline
 p$plot <- p$plot + geom_vline(xintercept = 12, linetype = "dashed", colour = "grey40")
 p
 png("figures/02_km_by_sponsor.png", width = 7, height = 6, units = "in", res = 300)
@@ -204,12 +198,14 @@ print(p)
 dev.off()
 ```
 
-## 5. Limitations and next steps
+## 6. Limitations
 
-- The cohort requires a reported FDA-regulation flag. Flags are mostly missing
-  before ~2020 and the missingness is unlikely to be random, so compliance is
-  probably overestimated.
-- Associations only. Next: Cox model adjusting for phase, enrollment and
-  completion year; the Kaplan–Meier curves cross, so the proportional-hazards
-  assumption has to be checked.
-- Extensions are modelled with a single 36-month deadline (simplification).
+- Deadlines and eligibility are operational approximations. Registry
+  missingness (for example empty FDA-regulation flags) may bias selection in
+  an unknown direction.
+- Missing phase values are retained.
+- Comparisons are unadjusted and ignore clustering by sponsor.
+- Kaplan–Meier assumes non-informative censoring. Proportional hazards have
+  not been tested and would need checking before fitting a Cox model.
+- Submission does not establish public posting, complete reporting or journal
+  publication.

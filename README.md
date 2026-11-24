@@ -2,7 +2,7 @@
 
 A data engineering learning project using **Python, BigQuery, dbt, Docker, Kestra, and Power BI**. It builds a fixed cohort of breast-neoplasm-related interventional trials from AACT, describes their phases, sponsors, start years and geographic participation, and captures subsequent ClinicalTrials.gov API updates.
 
-**Analysis built on this pipeline:** [Timeliness of results reporting under FDAAA 801](analysis/results_reporting/README.md) — an exploratory study of whether breast cancer trials submit results on time, and how industry and academic sponsors differ.
+**Analysis built on this pipeline:** [Timeliness of results submission in breast cancer trials](analysis/results_reporting/README.md) — an exploratory pilot comparing results submission between industry and other lead sponsor classes.
 
 **Current checkpoint (2026-10-19):** 11,211 baseline trials; four prepared snapshot tables; nine dbt models with 42 data tests; three Power BI pages; containerized snapshot and API workflows. The previously documented API workflow was manually verified in an Ubuntu VMware VM. This review reran all 25 Python tests successfully and synchronized the locally saved Power BI report. An unattended trigger-origin run still needs to be documented. Power BI Import refresh remains manual.
 

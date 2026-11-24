@@ -1,22 +1,20 @@
 {{ config(materialized='table') }}
 
--- Grain: one row per trial (all trials in the cohort, not only in-scope ones).
--- Each cohort rule stays as its own boolean column so the funnel can be counted
--- step by step; in_scope marks the trials used for the compliance analysis.
+-- Grain: one row per trial in the base cohort (11,211), not only in-scope ones.
+-- The rules approximate the analytic cohort from registry fields; they are not
+-- a legal adjudication of applicable clinical trial (ACT) status.
 
 with studies as (
     select * from {{ ref('stg_breast_studies') }}
 ), trials as (
     select nct_id, lead_sponsor_class from {{ ref('fct_breast_trials') }}
 ), us_sites as (
-    -- One row per trial with at least one US facility. DISTINCT first, so a
-    -- trial with many US sites does not multiply rows in the join below.
+    -- One row per trial with at least one US facility (distinct before joining).
     select distinct nct_id
     from {{ ref('stg_breast_locations') }}
     where country = 'United States'
 ), rules as (
-    -- Step 1: compute the six cohort rules. coalesce(..., false) turns NULL
-    -- (unknown) into false, so every rule is strictly true or false.
+    -- Cohort rules. A rule that cannot be evaluated (NULL) counts as not met.
     select
         studies.nct_id,
         studies.trial_title,
@@ -31,13 +29,13 @@ with studies as (
         coalesce(studies.primary_completion_date is not null
                  and studies.primary_completion_date_type = 'ACTUAL', false) as r1_actual_completion,
         coalesce(studies.primary_completion_date >= date '2017-01-18', false) as r2_after_final_rule,
-        -- Empty FDA flags count as "not shown to be regulated" (primary analysis).
+        -- Empty FDA flags count as not regulated; how this selection affects the
+        -- estimates is not known.
         coalesce(studies.is_fda_regulated_drug, false)
             or coalesce(studies.is_fda_regulated_device, false) as r3_fda_regulated,
-        -- Exclude phase 1 only; device trials (phase NA) and missing phase stay in.
+        -- Exclude phase 1 only; device trials (phase NA) and missing phase are kept.
         coalesce(studies.phase not in ('PHASE1', 'EARLY_PHASE1'), true) as r4_not_phase1,
-        -- ACT definition: at least one site in the United States. Trials with no
-        -- facility records count as false (cannot be shown to have a US site).
+        -- At least one recorded US site; trials without facility records fail.
         us_sites.nct_id is not null as r6_has_us_site,
         coalesce(date_add(studies.primary_completion_date, interval 12 month)
                  < date '{{ var("snapshot_date", "2026-10-11") }}', false) as r5_deadline_passed
@@ -47,15 +45,18 @@ with studies as (
     left join us_sites
         on studies.nct_id = us_sites.nct_id
 ), derived as (
-    -- Step 2: columns built from the rules. A column alias cannot be reused in
-    -- the same SELECT that creates it, so this needs its own CTE.
     select
         *,
         r1_actual_completion and r2_after_final_rule and r3_fda_regulated
             and r4_not_phase1 and r6_has_us_site and r5_deadline_passed as in_scope,
+        -- Delay-related record: disposition_first_submitted_date is present. The
+        -- registry does not say whether it is a certification or an extension
+        -- request, or whether it was valid; the column name is kept for
+        -- compatibility with the export and the R analysis.
         disposition_first_submitted_date is not null as extension_requested,
-        -- Simplification: an extension may delay the deadline by up to 2 years,
-        -- so we give every extension the most lenient deadline (12 + 24 months).
+        -- Deadline scenario (an analysis assumption, not a verified legal
+        -- deadline): primary completion + 12 months, or + 36 months when a
+        -- delay-related record is present.
         case when disposition_first_submitted_date is not null
              then date_add(primary_completion_date, interval 36 month)
              else due_date end as effective_due_date,
@@ -66,8 +67,7 @@ with studies as (
             when not r2_after_final_rule  then '2_completed_before_2017'
             when not r3_fda_regulated     then '3_not_fda_regulated'
             when not r4_not_phase1        then '4_phase_1'
-            -- r6 belongs to the ACT definition, so it is checked before the deadline.
-            -- '4b_' keeps the existing labels (and their sort order) unchanged.
+            -- US-site rule added later; the 4b_ prefix keeps the label order.
             when not r6_has_us_site       then '4b_no_us_site'
             when not r5_deadline_passed   then '5_deadline_not_passed'
         end as exclusion_reason
@@ -75,8 +75,9 @@ with studies as (
 )
 select
     *,
-    -- CASE checks top to bottom and stops at the first match, so order matters:
-    -- submitted trials are classified first, then the unsubmitted ones.
+    -- Status under the deadline scenario. ON_TIME / LATE / OVERDUE_NOT_REPORTED
+    -- are scenario labels; EXTENSION_REQUESTED means unsubmitted and still
+    -- within the 36-month allowance.
     case
         when not in_scope then null
         when results_first_submitted_date <= effective_due_date then 'ON_TIME'
