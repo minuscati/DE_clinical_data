@@ -21,5 +21,7 @@ config/.user.yml
 .RData
 .Rproj.user/
 analysis/**/*.html
-analysis/**/*_files/
+# Keep the GitHub-markdown render (.md + figure-commonmark); ignore HTML intermediates
+analysis/**/*_files/figure-html/
+analysis/**/*_files/libs/
 Rplots.pdf

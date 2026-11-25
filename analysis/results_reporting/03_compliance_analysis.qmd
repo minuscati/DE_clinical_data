@@ -4,6 +4,9 @@ format:
   html:
     embed-resources: true
     toc: true
+  gfm:
+    toc: true
+    wrap: none
 execute:
   warning: false
   message: false
@@ -40,6 +43,7 @@ Each excluded trial is counted once, at the first rule it fails. The rules
 define the analytic cohort; they do not adjudicate legal ACT status.
 
 ```{r}
+#| label: cohort-funnel
 funnel <- trials |>
   count(exclusion_reason) |>
   mutate(exclusion_reason = coalesce(exclusion_reason, "6_in_scope")) |>
@@ -184,6 +188,7 @@ summary(km_fit, times = c(12, 24, 36))
 ```
 
 ```{r}
+#| label: km-by-sponsor
 # fun = "event" plots cumulative submission, 1 - S(t).
 p <- ggsurvplot(
   km_fit, data = km_data,
@@ -199,7 +204,7 @@ p$plot <- p$plot + geom_vline(xintercept = 12, linetype = "dashed", colour = "gr
 p
 png("figures/02_km_by_sponsor.png", width = 7, height = 6, units = "in", res = 300)
 print(p)
-dev.off()
+invisible(dev.off())
 ```
 
 ## 6. Limitations

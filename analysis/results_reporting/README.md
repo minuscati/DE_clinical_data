@@ -72,7 +72,8 @@ curves of cumulative submission (1 − S(t)) with an overall log-rank test.
 Comparisons use the registry lead sponsor classes `INDUSTRY` (n = 237) and
 `OTHER` (n = 310); `OTHER` has not been independently classified as academic.
 The remaining 21 government/network trials contribute to cohort totals only.
-Code: [`03_compliance_analysis.qmd`](03_compliance_analysis.qmd).
+Code: [`03_compliance_analysis.qmd`](03_compliance_analysis.qmd); rendered
+analysis with code and output: [`03_compliance_analysis.md`](03_compliance_analysis.md).
 
 ## Results
 
@@ -138,8 +139,10 @@ different questions.
    date precedes primary completion (23 in the base cohort, 4 in scope).
 2. Run [`02_export_for_r.sql`](02_export_for_r.sql) in BigQuery and save the
    result as `data/results_reporting.csv` in the repository root (git-ignored).
-3. Render [`03_compliance_analysis.qmd`](03_compliance_analysis.qmd) with Quarto,
-   or run it in RStudio from this folder.
+3. Render [`03_compliance_analysis.qmd`](03_compliance_analysis.qmd) with Quarto
+   (`quarto render 03_compliance_analysis.qmd`), or run it in RStudio from this
+   folder. The `gfm` output, [`03_compliance_analysis.md`](03_compliance_analysis.md),
+   is committed so the results can be read on GitHub without running the code.
 
 [`01_data_audit.sql`](01_data_audit.sql) holds the data checks used to choose the
 cohort rules (fill rates, value spellings, FDA-flag missingness by year, date
