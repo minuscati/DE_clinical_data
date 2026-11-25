@@ -75,30 +75,7 @@ count(cohort, sponsor_group)
 two_groups <- cohort |> filter(sponsor_group %in% c("INDUSTRY", "OTHER"))
 ```
 
-## 3. Common benchmark: submission within 365 days
-
-First results submission within 365 days of primary completion, irrespective
-of delay-related records. Missing submissions count as not meeting the
-benchmark. This is 365 days, not 12 calendar months. Four trials with a
-submission date before primary completion are retained and count as within 365 days.
-
-```{r}
-two_groups <- two_groups |>
-  mutate(within_365 = coalesce(
-    results_first_submitted_date <= primary_completion_date + 365,
-    FALSE
-  ))
-
-within_365 <- two_groups |>
-  group_by(sponsor_group) |>
-  summarise(submitted = sum(within_365), n = n(), share = submitted / n,
-            .groups = "drop")
-within_365
-
-prop.test(x = within_365$submitted, n = within_365$n)
-```
-
-## 4. Deadline scenario
+## 3. Deadline scenario
 
 Scenario deadline: primary completion + 12 calendar months, or + 36 calendar
 months when `disposition_first_submitted_date` is present. This field is used
@@ -145,6 +122,33 @@ delay_records <- two_groups |>
 delay_records
 
 prop.test(x = delay_records$with_record, n = delay_records$n)
+```
+
+## 4. Common 365-day window
+
+The scenario analysis was performed first; this comparison was added
+afterwards to check whether the sponsor difference depended on the additional
+time allowed. Neither analysis was pre-specified.
+
+First results submission within 365 days of primary completion, irrespective
+of delay-related records. Missing submissions count as not meeting this
+window. This is 365 days, not 12 calendar months. Four trials with a
+submission date before primary completion are retained and count as within 365 days.
+
+```{r}
+two_groups <- two_groups |>
+  mutate(within_365 = coalesce(
+    results_first_submitted_date <= primary_completion_date + 365,
+    FALSE
+  ))
+
+within_365 <- two_groups |>
+  group_by(sponsor_group) |>
+  summarise(submitted = sum(within_365), n = n(), share = submitted / n,
+            .groups = "drop")
+within_365
+
+prop.test(x = within_365$submitted, n = within_365$n)
 ```
 
 The deadline rule and the denominator both differ between sections 3 and 4,

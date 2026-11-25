@@ -13,9 +13,11 @@ good cause have distinct conditions (42 CFR 11.44); neither implies an automatic
 
 In a cohort of interventional breast cancer trials:
 
-1. How promptly are results submitted?
-2. How do industry and other lead sponsors compare?
-3. How sensitive is that comparison to the treatment of delay-related registry records?
+1. How soon are results submitted after primary completion?
+2. Do industry and other lead sponsors differ when additional time is allowed
+   for trials with delay-related registry records?
+3. Does any difference persist when all trials are assessed against a common
+   365-day window?
 
 ## Data and cohort
 
@@ -39,17 +41,21 @@ In a cohort of interventional breast cancer trials:
 
 ## Outcomes
 
-- **Common benchmark:** first results submission within **365 days** of primary
-  completion, irrespective of delay-related records. Missing submissions count as
-  not meeting the benchmark. This is distinct from 12 calendar months.
-- **Deadline scenario (secondary):** primary completion + 12 calendar months, or
+- **Deadline scenario:** primary completion + 12 calendar months, or
   + 36 calendar months when `disposition_first_submitted_date` is present. The
   field is used only as a delay-related indicator; the analysis does not
   establish the legal basis, validity or applicable deadline of each record. The
   36-month allowance is an assumption, not a verified deadline. Five unsubmitted
   trials still within that allowance are excluded only from scenario-based proportions.
+- **Common 365-day window:** first results submission within **365 days** of
+  primary completion, irrespective of delay-related records. Missing submissions
+  count as not meeting it. This is distinct from 12 calendar months.
 - **Time to first submission** from primary completion, censored at the
   snapshot date (months = days / 30.4375).
+
+The scenario analysis was performed first; the 365-day comparison was added
+afterwards to check whether the sponsor difference depended on the additional
+time allowed. Neither analysis was pre-specified.
 
 Outcomes concern first submission, not public posting, completeness of the
 submitted results or journal publication.
@@ -79,8 +85,8 @@ those five, the scenario-based share is 312/563 (55.4%).
 
 | | Industry | Other | Difference, pp (95% CI) | p |
 |---|---:|---:|---:|---:|
-| Within 365 days | 117/237 (49.4%) | 152/310 (49.0%) | 0.3 (−8.5 to 9.1) | 1.00 |
 | By scenario deadline¹ | 141/232 (60.8%) | 160/310 (51.6%) | 9.2 (0.4 to 17.9) | 0.042 |
+| Within 365 days | 117/237 (49.4%) | 152/310 (49.0%) | 0.3 (−8.5 to 9.1) | 1.00 |
 | Delay-related record present | 32/237 (13.5%) | 8/310 (2.6%) | 10.9 (5.9 to 16.0) | < 0.001 |
 | By 24 months (KM)² | 65.0% | 77.0% | | |
 | By 36 months (KM)² | 79.9% | 86.2% | | |
@@ -98,12 +104,14 @@ those five, the scenario-based share is 312/563 (55.4%).
 
 ## Interpretation
 
-At 365 days the two sponsor classes had similar submission proportions; this is
-not evidence of equivalence. Sponsor differences were sensitive to the deadline
-definition. Both the deadline rule and the denominator change between the
-benchmark and the scenario, so these unadjusted comparisons do not establish why
-the difference arose. The 365-day benchmark and the submission-time distribution
-also answer different questions.
+Under the deadline scenario, industry trials submitted by the scenario deadline
+more often than other trials. Within a common 365-day window, the two sponsor
+classes had similar submission proportions; this is not evidence of
+equivalence. Sponsor differences were therefore sensitive to the deadline
+definition. Both the deadline rule and the denominator change between the two
+analyses, so these unadjusted comparisons do not establish why the difference
+arose. The 365-day window and the submission-time distribution also answer
+different questions.
 
 ## Limitations
 
